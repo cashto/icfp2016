@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Numerics;
-
+using System.IO;
 
 namespace Solver
 {
@@ -13,14 +13,30 @@ namespace Solver
     {
         static void Main(string[] args)
         {
-            Console.WriteLine(CreateRandomPuzzle(40));
+            //var r = new Random();
+            //var cheatMatrix =
+            //    Matrix.Rotate(new RationalNumber(3, 5), new RationalNumber(4, 5)) *
+            //    Matrix.Translate(RationalNumber.Random(r) / 1337, RationalNumber.Random(r) / 1337);
+            //Console.WriteLine(CreateRandomPuzzle(cheatMatrix));
+            //Environment.Exit(0);
+
+            var problemsToSolve = File.ReadAllLines(args[0]);
+            Parallel.ForEach(
+                problemsToSolve,
+                new ParallelOptions() { MaxDegreeOfParallelism = 80 },
+                i => {
+                var ps = new ProblemSpecification(File.ReadAllText("/icfp2016/work/probs/" + i));
+                var ans = Program.Solve(ps, 3);
+                Console.WriteLine("{0}: {1}", i, ans.Compare(ps.polys));
+                File.WriteAllText("/icfp/work/solutions/" + i, ans.ToString());
+            });
         }
 
-        public static Origami CreateRandomPuzzle(int folds)
+        public static Origami CreateRandomPuzzle(Matrix cheatMatrix)
         {
             var r = new Random();
             var o = new Origami();
-            for (var i = 0; i < folds; ++i)
+            for (var i = 0; i < 100; ++i)
             {
                 var p1 = Point.Random(r);
                 var p2 = Point.Random(r);
@@ -31,12 +47,19 @@ namespace Solver
 
                 // Console.WriteLine(p1.ToString() + "  " + p2.ToString());
                 var line = new Line(p1, p2);
-                o = o.Fold(line);
+                var o2 = o.Fold(line);
+                if (o2.ToString(cheatMatrix).Length > 5000)
+                {
+                    return o;
+                }
+                o = o2;
+                // Console.WriteLine("Area: " + o.Area());
             }
+
             return o;
         }
 
-        public static Origami Solve(ProblemSpecification ps, Origami origami = null, int depth = 3)
+        public static Origami Solve(ProblemSpecification ps, int depth = 3, Origami origami = null)
         {
             if (depth == 0)
             {
@@ -52,12 +75,22 @@ namespace Solver
             Origami currentAnswer = null;
             foreach (var segment in ps.segments.Concat(ps.reverseSegments))
             {
-                var t = Solve(ps, origami.Fold(new Line(segment)), depth - 1);
+                //if (origami.ContainsSegment(segment))
+                //{
+                //    continue;
+                //}
+
+                var t = Solve(ps, depth - 1, origami.Fold(new Line(segment)));
                 var ts = t.Compare(ps.polys); 
                 if (ts >= currentSimilarity)
                 {
                     currentAnswer = t;
                     currentSimilarity = ts;
+                }
+
+                if (currentSimilarity == 1.0)
+                {
+                    return currentAnswer;
                 }
             }
 
@@ -104,6 +137,16 @@ namespace Solver
 
         public override string ToString()
         {
+            return ToString(null);
+        }
+
+        public string ToString(Matrix cheatMatrix = null)
+        {
+            if (cheatMatrix == null)
+            {
+                cheatMatrix = Matrix.Identity;
+            }
+
             var sb = new StringBuilder();
             var pointSet = new Dictionary<PointMapping, int>();
             foreach (var poly in polys)
@@ -148,7 +191,9 @@ namespace Solver
 
             foreach (var point in orderedPoints)
             {
-                sb.AppendFormat("{0},{1}", point.destPoint.x, point.destPoint.y);
+                sb.AppendFormat("{0},{1}", 
+                    cheatMatrix.Transform(point.destPoint).x, 
+                    cheatMatrix.Transform(point.destPoint).y);
                 sb.AppendLine();
             }
 
@@ -203,11 +248,16 @@ namespace Solver
         public List<Polygon> GetUniquePolys()
         {
             var ans = new List<Polygon>();
-            foreach (var poly in polys)
+            var polyList = this.polys
+                .Select(p => p.GetPositiveAreaPolygon())
+                .OrderByDescending(p => p.Area().AsDouble());
+
+            foreach (var poly in polyList)
             {
-                if (!ans.Any(p => p.vertexes.All(v => poly.vertexes.Contains(v))))
+                var area = poly.Area().AsDouble();
+                if (!ans.Any(i => Math.Abs(i.Intersect(poly).Area().AsDouble()) == area))
                 {
-                    ans.Add(poly.GetPositiveAreaPolygon());
+                    ans.Add(poly);
                 }
             }
             return ans;
@@ -238,6 +288,7 @@ namespace Solver
                 var newSections = sections
                     .Select(s => new Section(s.ThisCount + 1, s.OtherCount, poly.Intersect(s.Poly)))
                     .Where(s => s.Poly != null)
+                    .Where(s => s.Poly.Area().AsDouble() > 0.01)
                     .ToList();
                 sections.AddRange(newSections);
                 sections.Add(new Section(1, 0, poly));
@@ -250,6 +301,7 @@ namespace Solver
                     var newSections = sections
                         .Select(s => new Section(s.ThisCount, s.OtherCount + 1, poly.Intersect(s.Poly)))
                         .Where(s => s.Poly != null)
+                        .Where(s => s.Poly.Area().AsDouble() > 0.01)
                         .ToList();
                     sections.AddRange(newSections);
                     sections.Add(new Section(0, 1, poly));
@@ -267,6 +319,11 @@ namespace Solver
                 area = area + multiplier * Math.Abs(s.Poly.Area().AsDouble());
             }
             return area;
+        }
+
+        public double Area()
+        {
+            return Area(this.GetUniquePolys());
         }
 
         public double Compare(List<Polygon> otherPolys)
@@ -344,6 +401,12 @@ namespace Solver
             }
 
             return Tuple.Create(new Point(minX, minY), new Point(maxX, maxY));
+        }
+
+        public bool ContainsSegment(Tuple<Point, Point> segment)
+        {
+            return this.polys.Any(i =>
+                i.vertexes.Contains(segment.Item1) && i.vertexes.Contains(segment.Item2));
         }
 
         public List<Polygon> polys { get; private set; }
@@ -478,6 +541,7 @@ namespace Solver
                 {
                     var p1Outside = destSegment.Item1.IsToRightOfLine(line);
                     var p2Outside = destSegment.Item2.IsToRightOfLine(line);
+
                     if (!p1Outside && p2Outside)
                     {
                         c.Add(destSegment.Item1);
@@ -508,7 +572,7 @@ namespace Solver
                     other = new Polygon(c, null);
                 }
             }
-            
+
             return other;
         }
 
@@ -840,11 +904,11 @@ namespace Solver
             var s = str.Split('/');
             if (s.Length == 1)
             {
-                return new RationalNumber(int.Parse(s[0]));
+                return new RationalNumber(BigInteger.Parse(s[0]), 1);
             }
             else
             {
-                return new RationalNumber(int.Parse(s[0]), int.Parse(s[1]));
+                return new RationalNumber(BigInteger.Parse(s[0]), BigInteger.Parse(s[1]));
             }
         }
 
@@ -887,6 +951,29 @@ namespace Solver
             a[1, 2] = (-2 * l.b * l.c) / t;
             a[2, 0] = a[2, 1] = 0;
             a[2, 2] = 1;
+            return new Matrix(a);
+        }
+
+        public static Matrix Rotate(RationalNumber sin, RationalNumber cos)
+        {
+            Program.Assert(RationalNumber.One.Equals(sin * sin + cos * cos));
+            var a = new RationalNumber[3, 3];
+            a[0, 0] = cos;
+            a[1, 0] = sin;
+            a[0, 1] = -sin;
+            a[1, 1] = cos;
+            a[0, 2] = a[1, 2] = a[2, 0] = a[2, 1] = 0;
+            a[2, 2] = 1;
+            return new Matrix(a);
+        }
+
+        public static Matrix Translate(RationalNumber dx, RationalNumber dy)
+        {
+            var a = new RationalNumber[3, 3];
+            a[0, 2] = dx;
+            a[1, 2] = dy;
+            a[0, 0] = a[1, 1] = a[2, 2] = 1; 
+            a[0, 1] = a[1, 0] = a[2, 0] = a[2, 1] = 0;
             return new Matrix(a);
         }
 

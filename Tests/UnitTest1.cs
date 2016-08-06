@@ -1,6 +1,8 @@
 ﻿using System;
+using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Solver;
+using System.Collections.Generic;
 
 namespace Tests
 {
@@ -123,8 +125,12 @@ namespace Tests
         [TestMethod]
         public void TestRandomOrigami()
         {
-            var o = Program.CreateRandomPuzzle(40);
-            Console.WriteLine(o.ToString());
+            var r = new Random();
+            var cheatMatrix =
+                Matrix.Rotate(new RationalNumber(3, 5), new RationalNumber(4, 5)) *
+                Matrix.Translate(RationalNumber.Random(r) / 1337, RationalNumber.Random(r) / 1337);
+            var o = Program.CreateRandomPuzzle(cheatMatrix);
+            Console.WriteLine(o.ToString(cheatMatrix));
         }
 
         [TestMethod]
@@ -163,6 +169,48 @@ namespace Tests
         public void TestEmptyOrigami()
         {
             Console.WriteLine(new Origami().ToString());
+        }
+
+        [TestMethod]
+        public void TestEmptyIntersection()
+        {
+            var poly1 = new Polygon(new List<Point>()
+            {
+                Point.Parse("0,0"),
+                Point.Parse("0,1"),
+                Point.Parse("1,1"),
+                Point.Parse("1,0")
+            }, null);
+
+            var poly2 = new Polygon(new List<Point>()
+            {
+                Point.Parse("2,0"),
+                Point.Parse("2,1"),
+                Point.Parse("3,1"),
+                Point.Parse("3,0")
+            }, null);
+
+            var poly3 = poly1.Intersect(poly2);
+            Assert.AreEqual(0.0, poly3.Area().AsDouble());
+
+            var poly4 = new Polygon(new List<Point>()
+            {
+                Point.Parse("1,0"),
+                Point.Parse("1,1"),
+                Point.Parse("2,1"),
+                Point.Parse("2,0")
+            }, null);
+
+            var poly5 = poly1.Intersect(poly4);
+            Assert.AreEqual(0.0, poly5.Area().AsDouble());
+        }
+
+        [TestMethod]
+        public void TestSolver()
+        {
+            var ps = new ProblemSpecification(File.ReadAllText("/icfp2016/work/probs/8c1e799eb52ce99c3c337ff70880b4e5d6408309"));
+            var ans = Program.Solve(ps, 1);
+            Assert.AreEqual(1.0, ans.Compare(ps.polys));
         }
     }
 }
