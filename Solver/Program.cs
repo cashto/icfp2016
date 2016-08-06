@@ -13,6 +13,34 @@ namespace Solver
         static void Main(string[] args)
         {
         }
+
+        public static Origami CreateRandomPuzzle(int folds)
+        {
+            var r = new Random();
+            var o = new Origami();
+            for (var i = 0; i < folds; ++i)
+            {
+                var p1 = Point.Random(r);
+                var p2 = Point.Random(r);
+                if (p1.Equals(p2))
+                {
+                    continue;
+                }
+
+                Console.WriteLine(p1.ToString() + "  " + p2.ToString());
+                var line = new Line(p1, p2);
+                o = o.Fold(line);
+            }
+            return o;
+        }
+
+        public static void Assert(bool pred)
+        {
+            if (!pred)
+            {
+                throw new Exception("Assertion failed");
+            }
+        }
     }
 
     public class Origami
@@ -70,7 +98,7 @@ namespace Solver
             sb.AppendLine(orderedPoints.Count.ToString());
             foreach (var point in orderedPoints)
             {
-                sb.AppendFormat("{0} {1}", point.srcPoint.x, point.srcPoint.y);
+                sb.AppendFormat("{0},{1}", point.srcPoint.x, point.srcPoint.y);
                 sb.AppendLine();
             }
 
@@ -89,11 +117,98 @@ namespace Solver
 
             foreach (var point in orderedPoints)
             {
-                sb.AppendFormat("{0} {1}", point.destPoint.x, point.destPoint.y);
+                sb.AppendFormat("{0},{1}", point.destPoint.x, point.destPoint.y);
                 sb.AppendLine();
             }
 
             return sb.ToString();
+        }
+
+        public string ToSilhouetteString()
+        {
+            var uniquePolys = GetUniquePolys();
+            var sb = new StringBuilder();
+
+            sb.Append(uniquePolys.Count);
+            sb.AppendLine();
+
+            foreach (var poly in uniquePolys)
+            {
+                sb.Append(poly.vertexes.Count);
+                sb.AppendLine();
+                foreach (var vertex in poly.vertexes)
+                {
+                    sb.AppendFormat("{0} {1}", vertex.x, vertex.y);
+                    sb.AppendLine();
+                }
+            }
+
+            var lineSegments = new List<Tuple<Point, Point>>();
+            foreach (var poly in uniquePolys)
+            {
+                foreach (var segment in poly.GetLineSegments())
+                {
+                    if (!lineSegments.Contains(segment) &&
+                        !lineSegments.Contains(Tuple.Create(segment.Item2, segment.Item1)))
+                    {
+                        lineSegments.Add(segment);
+                    }
+                }
+            }
+
+            sb.Append(lineSegments.Count);
+            sb.AppendLine();
+            foreach (var segment in lineSegments)
+            {
+                sb.AppendFormat("{0} {1} {2} {3}",
+                    segment.Item1.x, segment.Item1.y,
+                    segment.Item2.x, segment.Item2.y);
+                sb.AppendLine();
+            }
+
+            return sb.ToString();
+        }
+
+        public List<Polygon> GetUniquePolys()
+        {
+            var ans = new List<Polygon>();
+            foreach (var poly in polys)
+            {
+                if (!ans.Any(p => p.vertexes.All(v => poly.vertexes.Contains(v))))
+                {
+                    ans.Add(poly.GetPositiveAreaPolygon());
+                }
+            }
+            return ans;
+        }
+
+        public double Compare(List<Polygon> otherPolys)
+        {
+            var thisPolys = this.GetUniquePolys();
+            var c = 0;
+            var n = 10;
+            var positivePolys = otherPolys.Where(p => p.Area().n >= 0).ToList();
+            var negativePolys = otherPolys.Where(p => p.Area().n < 0).Select(p => p.GetPositiveAreaPolygon()).ToList();
+            for (var x = 0; x < n; ++x)
+            {
+                for (var y = 0; y < n; ++y)
+                {
+                    var xy = new Point(new RationalNumber(x, n - 1), new RationalNumber(y, n - 1));
+                    var isInsideThis = thisPolys.Any(p => p.ContainsPoint(xy));
+                    var isInsideOther = 
+                        positivePolys.Any(p => p.ContainsPoint(xy)) && 
+                        negativePolys.All(p => !p.ContainsPoint(xy));
+                    if (isInsideThis == isInsideOther)
+                    {
+                        ++c;
+                    }
+                    else
+                    {
+                        c = c + 0;
+                    }
+                }
+            }
+            return c / ((double)n * n);
         }
 
         public List<Polygon> polys { get; private set; }
@@ -112,39 +227,41 @@ namespace Solver
         public List<Polygon> Fold(Line line)
         {
             var useAns1 = true;
+            var xs = new List<Point>();
             var ans1 = new List<Point>();
             var ans2 = new List<Point>();
 
-            for (var idx = 0; idx < vertexes.Count; ++idx)
+            foreach (var segment in this.GetLineSegments())
             {
-                var a = vertexes[idx];
-                var b = vertexes[(idx + 1) % vertexes.Count];
-                var i = line.Intersect(a, b);
+                var x = line.Intersect(segment.Item1, segment.Item2);
+                (useAns1 ? ans1 : ans2).Add(segment.Item1);
 
-                (useAns1 ? ans1 : ans2).Add(a);
-
-                if (i != null && !b.Equals(i))
+                if (x != null && !x.Equals(segment.Item2))
                 {
-                    if (!a.Equals(i))
-                    {
-                        (useAns1 ? ans1 : ans2).Add(i);
-                    }
-                    
+                    xs.Add(x);
+                    (useAns1 ? ans1 : ans2).Add(x);
                     useAns1 = !useAns1;
-                    (useAns1 ? ans1 : ans2).Add(i);
+                    (useAns1 ? ans1 : ans2).Add(x);
                 }
+            }
+
+            if (xs.Count != 2 || xs[0].Equals(xs[1]))
+            {
+                ans1 = vertexes;
+                ans2.Clear();
             }
 
             var ans = new List<Polygon>();
             Action<List<Point>> add = (i) =>
                 {
-                    if (!i.Any())
+                    if (i.Count == 0)
                     {
                         return;
                     }
 
+                    Program.Assert(i.Count >= 3);
                     var p = new Polygon(i, matrix);
-                    if (i.Any(j => j.IsAboveLine(line)))
+                    if (i.Any(j => j.IsToRightOfLine(line)))
                     {
                         p = p.Reflect(line);
                     }
@@ -158,9 +275,102 @@ namespace Solver
 
         public Polygon Reflect (Line line)
         {
-            return new Polygon(
+            var ans = new Polygon(
                 vertexes.Select(i => line.Reflect(i)).ToList(),
                 Matrix.Reflect(line) * matrix);
+
+            var invMatrix = ans.matrix.Invert();
+            Program.Assert(Matrix.Identity.Equals(invMatrix * ans.matrix));
+            foreach (var v in ans.vertexes)
+            {
+                var v2 = invMatrix.Transform(v);
+                Program.Assert(v2.x >= RationalNumber.Zero);
+                Program.Assert(v2.x <= RationalNumber.One);
+                Program.Assert(v2.y >= RationalNumber.Zero);
+                Program.Assert(v2.y <= RationalNumber.One);
+            }
+
+            return ans;
+        }
+
+        public RationalNumber Area()
+        {
+            var area = RationalNumber.Zero;
+            foreach (var segment in this.GetLineSegments())
+            {
+                area = area + (segment.Item2.x + segment.Item1.x) * (segment.Item2.y - segment.Item1.y);
+            }
+
+            return area / 2;
+        }
+
+        public Polygon GetPositiveAreaPolygon()
+        {
+            if (this.Area().n >= 0)
+            {
+                return this;
+            }
+
+            return new Polygon(this.vertexes.Reverse<Point>().ToList(), matrix);
+        }
+
+        public IEnumerable<Tuple<Point, Point>> GetLineSegments()
+        {
+            for (var i = 0; i < vertexes.Count; ++i)
+            {
+                var p1 = vertexes[i];
+                var p2 = vertexes[(i + 1) % vertexes.Count];
+                yield return Tuple.Create(p1, p2);
+            }
+        }
+
+        public bool ContainsPoint(Point point)
+        {
+            return GetLineSegments().All(seg => point.IsToRightOfLine(new Line(seg.Item2, seg.Item1)));
+        }
+
+        public Polygon Intersect(Polygon other)
+        {
+            foreach (var srcSegment in this.GetPositiveAreaPolygon().GetLineSegments())
+            {
+                var line = new Line(srcSegment.Item1, srcSegment.Item2);
+                var c = new List<Point>();
+                foreach (var destSegment in other.GetLineSegments())
+                {
+                    var p1Outside = destSegment.Item1.IsToRightOfLine(line);
+                    var p2Outside = destSegment.Item2.IsToRightOfLine(line);
+                    if (!p1Outside && p2Outside)
+                    {
+                        c.Add(destSegment.Item1);
+                        var x = line.Intersect(destSegment.Item1, destSegment.Item2);
+                        Program.Assert(x != null);
+                        c.Add(x);
+                    }
+                    else if (p1Outside && !p2Outside)
+                    {
+                        var x = line.Intersect(destSegment.Item1, destSegment.Item2);
+                        Program.Assert(x != null);
+                        c.Add(x);
+                    }
+                    else if (!p1Outside && !p2Outside)
+                    {
+                        c.Add(destSegment.Item1);
+                    }
+                }
+
+                bool removeDupes = c.Count > other.vertexes.Count;
+                other = new Polygon(c, null);
+                if (removeDupes)
+                {
+                    c = other.GetLineSegments()
+                        .Where(i => !i.Item1.Equals(i.Item2))
+                        .Select(i => i.Item1)
+                        .ToList();
+                    other = new Polygon(c, null);
+                }
+            }
+            
+            return other;
         }
 
         public List<Point> vertexes { get; private set; }
@@ -176,19 +386,20 @@ namespace Solver
             var dx = p2.x - p1.x;
             if (dx.n == 0)
             {
-                a = 1;
+                a = dy.n > 0 ? 1 : -1;
                 b = 0;
             }
             else
             {
                 var d = dy / dx;
-                a = -d.n;
-                b = d.d;
+                var s = dx.n > 0 ? -1 : 1;
+                a = -d.n * s;
+                b = d.d * s;
             }
 
             c = -(p1.x * a + p1.y * b);
-            Debug.Assert(this.ContainsPoint(p1));
-            Debug.Assert(this.ContainsPoint(p2));
+            Program.Assert(this.ContainsPoint(p1));
+            Program.Assert(this.ContainsPoint(p2));
         }
 
         private Line(Point p, long a_, long b_)
@@ -196,7 +407,7 @@ namespace Solver
             a = a_;
             b = b_;
             c = -(p.x * a + p.y * b);
-            Debug.Assert(this.ContainsPoint(p));
+            Program.Assert(this.ContainsPoint(p));
         }
 
         public Point Intersect(Line other)
@@ -211,8 +422,8 @@ namespace Solver
                 (this.b * other.c - other.b * this.c) / t,
                 (other.a * this.c - this.a * other.c) / t);
 
-            Debug.Assert(this.ContainsPoint(ans));
-            Debug.Assert(other.ContainsPoint(ans));
+            Program.Assert(this.ContainsPoint(ans));
+            Program.Assert(other.ContainsPoint(ans));
 
             return ans;
         }
@@ -299,7 +510,7 @@ namespace Solver
         public RationalNumber x { get; private set; }
         public RationalNumber y { get; private set; }
 
-        public bool IsAboveLine(Line l)
+        public bool IsToRightOfLine(Line l)
         {
             return (l.a * x + l.b * y + l.c).n > 0;
         }
@@ -322,6 +533,17 @@ namespace Solver
         public override string ToString()
         {
             return string.Format("({0}, {1})", x, y);
+        }
+
+        public static Point Parse(string str)
+        {
+            var s = str.Split(',');
+            return new Point(RationalNumber.Parse(s[0]), RationalNumber.Parse(s[1]));
+        }
+
+        public static Point Random(Random r)
+        {
+            return new Point(RationalNumber.Random(r), RationalNumber.Random(r));
         }
     }
 
@@ -392,12 +614,12 @@ namespace Solver
 
         public static bool operator> (RationalNumber a, RationalNumber b)
         {
-            return !(b <= a);
+            return a.n * b.d > a.d * b.n;
         }
 
         public static bool operator >=(RationalNumber a, RationalNumber b)
         {
-            return !(b < a);
+            return a.n * b.d >= a.d * b.n;
         }
 
         public override bool Equals(object obj)
@@ -413,6 +635,12 @@ namespace Solver
         public override int GetHashCode()
         {
             return n.GetHashCode() ^ d.GetHashCode();
+        }
+
+
+        public double AsDouble()
+        {
+            return (double)n / (double)d;
         }
 
         public override string ToString()
@@ -441,6 +669,29 @@ namespace Solver
 
             return x;
         }
+
+        public static RationalNumber Parse(string str)
+        {
+            var s = str.Split('/');
+            if (s.Length == 1)
+            {
+                return new RationalNumber(int.Parse(s[0]));
+            }
+            else
+            {
+                return new RationalNumber(int.Parse(s[0]), int.Parse(s[1]));
+            }
+        }
+
+        public static RationalNumber Random(Random r)
+        {
+            var d = r.Next(1, 5);
+            var n = r.Next(0, d + 1);
+            return new RationalNumber(n, d);
+        }
+
+        public static RationalNumber Zero = new RationalNumber(0);
+        public static RationalNumber One = new RationalNumber(1);
     }
 
     public class Matrix
@@ -541,5 +792,48 @@ namespace Solver
         RationalNumber[,] a;
 
         public static Matrix Identity = new Matrix(new RationalNumber[3, 3] { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } });
+    }
+
+    public class ProblemSpecification
+    {
+        public ProblemSpecification(string data)
+        {
+            this.polys = new List<Polygon>();
+            this.segments = new List<Tuple<Point, Point>>();
+
+            var line = data.Replace("\r", "").Split('\n').AsEnumerable<string>().GetEnumerator();
+
+            line.MoveNext();
+            var nPolys = int.Parse(line.Current);
+            for (var i = 0; i < nPolys; ++i)
+            {
+                var vertexes = new List<Point>();
+                line.MoveNext();
+                var nVertexes = int.Parse(line.Current);
+                
+                for (var j = 0; j < nVertexes; ++j)
+                {
+                    line.MoveNext();
+                    var pt = Point.Parse(line.Current);
+                    vertexes.Add(pt);
+                }
+
+                polys.Add(new Polygon(vertexes, null));
+            }
+
+            line.MoveNext();
+            var nSegments = int.Parse(line.Current);
+            for (var i = 0; i < nSegments; ++i)
+            {
+                line.MoveNext();
+                var fields = line.Current.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                var p1 = Point.Parse(fields[0]);
+                var p2 = Point.Parse(fields[1]);
+                segments.Add(Tuple.Create(p1, p2));
+            }
+        }
+
+        public List<Polygon> polys { get; private set; }
+        public List<Tuple<Point, Point>> segments { get; private set; }
     }
 }

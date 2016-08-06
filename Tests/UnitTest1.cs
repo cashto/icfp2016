@@ -29,9 +29,9 @@ namespace Tests
             var l1 = new Line(p1, p2);
             Assert.IsTrue(l1.ContainsPoint(p1));
             Assert.IsTrue(l1.ContainsPoint(p2));
-            Assert.AreEqual(1, l1.a);
-            Assert.AreEqual(2, l1.b);
-            Assert.AreEqual(new RationalNumber(-3), l1.c);
+            Assert.AreEqual(-1, l1.a);
+            Assert.AreEqual(-2, l1.b);
+            Assert.AreEqual(new RationalNumber(3), l1.c);
 
             var l2 = new Line(
                 new Point(0, new RationalNumber(1, 2)),
@@ -45,11 +45,19 @@ namespace Tests
         public void TestOrigami()
         {
             var o0 = new Origami();
-            var o1 = o0.Fold(new Line(new Point(0, 1), new Point(1, 0)));
+            var o1 = o0.Fold(new Line(new Point(1, 0), new Point(0, 1)));
             var o2 = o1.Fold(new Line(
-                new Point(0, new RationalNumber(1, 2)),
-                new Point(1, new RationalNumber(1, 2))));
+                new Point(1, new RationalNumber(1, 2)),
+                new Point(0, new RationalNumber(1, 2))));
+
+            ProblemSpecification ps = new ProblemSpecification(ExampleProblemSpec);
+            var similarity = o2.Compare(ps.polys);
+            Assert.AreEqual(1.0, similarity);
+
+            Console.Out.WriteLine("ToString:");
             Console.Out.WriteLine(o2.ToString());
+            Console.Out.WriteLine("ToSilhouette:");
+            Console.Out.WriteLine(o2.ToSilhouetteString());
         }
 
         [TestMethod]
@@ -68,6 +76,89 @@ namespace Tests
 
             var I = m * m.Invert();
             Assert.AreEqual(Matrix.Identity, I);
+        }
+
+        [TestMethod]
+        public void TestAboveLine()
+        {
+            TestAboveLineIter(1, 0, false);
+            TestAboveLineIter(1, 1, true);
+            TestAboveLineIter(0, 1, true);
+            TestAboveLineIter(-1, 1, true);
+            TestAboveLineIter(-1, 0, true);
+            TestAboveLineIter(-1, -1, false);
+            TestAboveLineIter(0, -1, false);
+            TestAboveLineIter(1, -1, false);
+        }
+
+        private void TestAboveLineIter(int x, int y, bool expected)
+        {
+            var line = new Line(new Point(0, 0), new Point(x, y));
+            Assert.AreEqual(expected, new Point(10, 1).IsToRightOfLine(line));
+        }
+
+        [TestMethod]
+        public void TestProblemSpecification()
+        {
+            ProblemSpecification ps = new ProblemSpecification(ExampleProblemSpec);
+            Assert.AreEqual(1, ps.polys.Count);
+            Assert.AreEqual(4, ps.polys[0].vertexes.Count);
+            Assert.AreEqual(5, ps.segments.Count);
+        }
+
+        public const string ExampleProblemSpec = 
+            "1\n" +
+            "4\n" +
+            "0,0\n" +
+            "1,0\n" +
+            "1/2,1/2\n" +
+            "0,1/2\n" +
+            "5\n" +
+            "0,0 1,0\n" +
+            "1,0 1/2,1/2\n" +
+            "1/2,1/2 0,1/2\n" +
+            "0,1/2 0,0\n" +
+            "0,0 1/2,1/2\n";
+
+        [TestMethod]
+        public void TestRandomOrigami()
+        {
+            var o = Program.CreateRandomPuzzle(4);
+            Console.WriteLine(o.ToString());
+        }
+
+        [TestMethod]
+        public void TestComparison()
+        {
+            Assert.IsTrue(RationalNumber.One >= RationalNumber.Zero);
+            Assert.IsTrue(RationalNumber.Zero < RationalNumber.One);
+        }
+
+        [TestMethod]
+        public void TestMoreOrigami()
+        {
+            var o = new Origami();
+            var o2 = o.Fold(new Line(
+                new Point(new RationalNumber(1, 2), 0),
+                new Point(new RationalNumber(1, 4), 0)));
+            Assert.AreEqual(1, o2.polys.Count);
+
+            o = new Origami();
+            o2 = o.Fold(new Line(
+                new Point(new RationalNumber(1, 2), 1),
+                new Point(new RationalNumber(2, 3), 0)));
+            var o3 = o2.Fold(new Line(
+                new Point(new RationalNumber(1, 3), new RationalNumber(1, 3)),
+                new Point(new RationalNumber(1, 2), 1)));
+            var o4 = o3.Fold(new Line(
+                new Point(0, 0),
+                new Point(new RationalNumber(2, 3), 0)));
+        }
+
+        [TestMethod]
+        public void TestEmptyOrigami()
+        {
+            Console.WriteLine(new Origami().ToString());
         }
     }
 }
