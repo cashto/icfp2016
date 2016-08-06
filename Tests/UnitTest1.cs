@@ -130,7 +130,7 @@ namespace Tests
                 Matrix.Rotate(new RationalNumber(3, 5), new RationalNumber(4, 5)) *
                 Matrix.Translate(RationalNumber.Random(r) / 1337, RationalNumber.Random(r) / 1337);
             var o = Program.CreateRandomPuzzle(cheatMatrix);
-            Console.WriteLine(o.ToString(cheatMatrix));
+            Console.WriteLine(o.ToString());
         }
 
         [TestMethod]
@@ -180,7 +180,7 @@ namespace Tests
                 Point.Parse("0,1"),
                 Point.Parse("1,1"),
                 Point.Parse("1,0")
-            }, null);
+            });
 
             var poly2 = new Polygon(new List<Point>()
             {
@@ -188,7 +188,7 @@ namespace Tests
                 Point.Parse("2,1"),
                 Point.Parse("3,1"),
                 Point.Parse("3,0")
-            }, null);
+            });
 
             var poly3 = poly1.Intersect(poly2);
             Assert.AreEqual(0.0, poly3.Area().AsDouble());
@@ -199,7 +199,7 @@ namespace Tests
                 Point.Parse("1,1"),
                 Point.Parse("2,1"),
                 Point.Parse("2,0")
-            }, null);
+            });
 
             var poly5 = poly1.Intersect(poly4);
             Assert.AreEqual(0.0, poly5.Area().AsDouble());
@@ -208,9 +208,37 @@ namespace Tests
         [TestMethod]
         public void TestSolver()
         {
-            var ps = new ProblemSpecification(File.ReadAllText("/icfp2016/work/probs/8c1e799eb52ce99c3c337ff70880b4e5d6408309"));
-            var ans = Program.Solve(ps, 1);
+            var ps = new ProblemSpecification(File.ReadAllText("/icfp2016/work/probs/fe40cbad67513fb044d10d8c6438790eeb10ab69"));
+            var ans = Program.SolveExact(ps, 1);
             Assert.AreEqual(1.0, ans.Compare(ps.polys));
+        }
+
+        [TestMethod]
+        public void TestConvexHull()
+        {
+            var polys = new List<Polygon>()
+            {
+                new Polygon(new List<Point>()
+                {
+                    Point.Parse("2,0"),
+                    Point.Parse("4,0"),
+                    Point.Parse("4,2"),
+                    Point.Parse("6,2"),
+                    Point.Parse("6,4"),
+                    Point.Parse("9/2,9/2"),
+                    Point.Parse("11/2,9/2"),
+                    Point.Parse("4,6"),
+                    Point.Parse("2,6"),
+                    Point.Parse("3,3"),
+                    Point.Parse("0,4"),
+                    Point.Parse("0,2"),
+                    Point.Parse("2,2"),
+                })
+            };
+
+            var hull = Polygon.GetConvexHull(polys);
+            Assert.AreEqual(28, hull.Area());
+            Assert.AreEqual(8, hull.vertexes.Count);
         }
     }
 }

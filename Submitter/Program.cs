@@ -48,11 +48,13 @@ namespace Submitter
         static DbEntity Db;
         static SnapshotEntity Snapshot;
         static IEnumerator<string> Problems;
+        static DateTime LastSubmitTime;
 
         static void Main(string[] args)
         {
             Db = JsonConvert.DeserializeObject<DbEntity>(File.ReadAllText("/icfp2016/work/db.json"));
             Snapshot = JsonConvert.DeserializeObject<SnapshotEntity>(File.ReadAllText("/icfp2016/work/current.json"));
+            LastSubmitTime = DateTime.MinValue;
             // var problems = File.ReadAllLines(args[0]);
             var problems = new List<string>();
             for (var i = 1; i < 100; ++i)
@@ -125,8 +127,19 @@ namespace Submitter
 
         static async Task<DbProblemEntity> SolveOneImpl(SnapshotProblemEntity snapshotProblem)
         {
+            lock (syncRoot)
+            {
+                var problem = Db.problems.FirstOrDefault(i => i.id == snapshotProblem.problem_id);
+                if (problem != null && problem.serverSimilarity == 1.0)
+                {
+                    // I've already solved this one.
+                    return problem;
+                }
+            }
+
             var ans = await ExecProcessAsync(SOLVER, snapshotProblem.problem_spec_hash);
             var mySimilarity = double.Parse(ans);
+            DateTime submitTime;
 
             lock (syncRoot)
             {
@@ -148,7 +161,17 @@ namespace Submitter
                 }
 
                 problem.mySimilarity = mySimilarity;
+
+                TimeSpan minTimeSpan = TimeSpan.FromMilliseconds(1500);
+                submitTime = DateTime.UtcNow;
+                if (submitTime < LastSubmitTime + minTimeSpan)
+                {
+                    submitTime = LastSubmitTime + minTimeSpan;
+                }
+                LastSubmitTime = submitTime;
             }
+
+            await Task.Delay(submitTime - DateTime.UtcNow);
 
             var serverResult = await ExecProcessAsync(
                 CURL,

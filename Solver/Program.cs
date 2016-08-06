@@ -9,19 +9,29 @@ using System.IO;
 
 namespace Solver
 {
-    public class Program
+    public static class Program
     {
+        public static T SelectMaximum<T>(this IEnumerable<T> list, Func<T, double> fn)
+        {
+            var ans = list.First();
+            double ansMetric = fn(ans);
+            foreach (var i in list.Skip(1))
+            {
+                var iMetric = fn(i);
+                if (iMetric > ansMetric)
+                {
+                    ans = i;
+                    ansMetric = iMetric;
+                }
+            }
+
+            return ans;
+        }
+
         static void Main(string[] args)
         {
-            //var r = new Random();
-            //var cheatMatrix =
-            //    Matrix.Rotate(new RationalNumber(3, 5), new RationalNumber(4, 5)) *
-            //    Matrix.Translate(RationalNumber.Random(r) / 1337, RationalNumber.Random(r) / 1337);
-            //Console.WriteLine(CreateRandomPuzzle(cheatMatrix));
-            //Environment.Exit(0);
-
             var ps = new ProblemSpecification(File.ReadAllText("/icfp2016/work/probs/" + args[0]));
-            var ans = Program.Solve(ps, 1);
+            var ans = Program.Solve(ps, 2);
             File.WriteAllText("/icfp2016/work/solutions/" + args[0], ans.ToString());
             Console.WriteLine(ans.Compare(ps.polys));
         }
@@ -42,7 +52,8 @@ namespace Solver
                 // Console.WriteLine(p1.ToString() + "  " + p2.ToString());
                 var line = new Line(p1, p2);
                 var o2 = o.Fold(line);
-                if (o2.ToString(cheatMatrix).Length > 5000)
+                o2.matrix = cheatMatrix;
+                if (o2.ToString().Length > 5000)
                 {
                     return o;
                 }
@@ -95,6 +106,44 @@ namespace Solver
             return currentAnswer;
         }
 
+        public static Origami SolveExact(ProblemSpecification ps, int depth = 3, Origami origami = null)
+        {
+            if (origami == null)
+            {
+                origami = new Origami();
+            }
+
+            var origamiHull = Polygon.GetConvexHull(origami.polys.Select(i => i.GetPositiveAreaPolygon()));
+            if (origamiHull.Area().Equals(ps.convexHullArea))
+            {
+                var matrix = origamiHull.MatchHull(ps.convexHull);
+                if (matrix != null)
+                {
+                    origami.matrix = matrix;
+                    return origami;
+                }
+            }
+
+            // Do a fold!
+            if (depth > 0)
+            {
+                foreach (var segment in ps.segments.Concat(ps.reverseSegments))
+                {
+                    //if (origami.ContainsSegment(segment))
+                    //{
+                    //    continue;
+                    //}
+
+                    var t = Solve(ps, depth - 1, origami.Fold(new Line(segment)));
+                    if (t != null)
+                    {
+                        return t;
+                    }
+                }
+            }
+
+            return null;
+        }
 
         public static void Assert(bool pred)
         {
@@ -119,13 +168,14 @@ namespace Solver
 
             polys = new List<Polygon>()
             {
-                new Polygon(origPoints, Matrix.Identity)
+                new Polygon(origPoints)
             };
         }
 
         private Origami(List<Polygon> polys_)
         {
             polys = polys_;
+            matrix = Matrix.Identity;
         }
 
         public Origami Fold(Line line)
@@ -135,16 +185,6 @@ namespace Solver
 
         public override string ToString()
         {
-            return ToString(null);
-        }
-
-        public string ToString(Matrix cheatMatrix = null)
-        {
-            if (cheatMatrix == null)
-            {
-                cheatMatrix = Matrix.Identity;
-            }
-
             var sb = new StringBuilder();
             var pointSet = new Dictionary<PointMapping, int>();
             foreach (var poly in polys)
@@ -190,8 +230,8 @@ namespace Solver
             foreach (var point in orderedPoints)
             {
                 sb.AppendFormat("{0},{1}", 
-                    cheatMatrix.Transform(point.destPoint).x, 
-                    cheatMatrix.Transform(point.destPoint).y);
+                    this.matrix.Transform(point.destPoint).x, 
+                    this.matrix.Transform(point.destPoint).y);
                 sb.AppendLine();
             }
 
@@ -326,7 +366,7 @@ namespace Solver
 
         public double Compare(List<Polygon> otherPolys)
         {
-            var thisPolys = this.GetUniquePolys();
+            var thisPolys = this.GetUniquePolys().Select(p => p.Transform(this.matrix)).ToList();
             double intersectionArea = Area(thisPolys, otherPolys);
             return intersectionArea / (Area(thisPolys) + Area(otherPolys) - intersectionArea);
         }
@@ -408,13 +448,14 @@ namespace Solver
         }
 
         public List<Polygon> polys { get; private set; }
+        public Matrix matrix { get; set; }
     }
 
     public class Polygon
     {
         public Polygon(
             List<Point> vertexes_,
-            Matrix matrix_)
+            Matrix matrix_ = null)
         {
             vertexes = vertexes_;
             matrix = matrix_;
@@ -473,6 +514,11 @@ namespace Solver
             return ans;
         }
 
+        public Polygon Transform(Matrix matrix)
+        {
+            return new Polygon(this.vertexes.Select(v => matrix.Transform(v)).ToList(), this.matrix);
+        }
+
         public Polygon Reflect (Line line)
         {
             var ans = new Polygon(
@@ -529,6 +575,76 @@ namespace Solver
             return GetLineSegments().All(seg => !point.IsToRightOfLine(new Line(seg)));
         }
 
+        // Gift-wrapping algorithm
+        public static Polygon GetConvexHull(IEnumerable<Polygon> polys)
+        {
+            var hullPoints = new List<Point>();
+
+            // Gather all points from all CCW polys
+            var points = new List<Point>();
+            foreach (var poly in polys.Where(p => p.Area().n > 0))
+            {
+                points.AddRange(poly.vertexes);
+            }
+
+            // p0 = Leftmost point
+            var p0 = points.SelectMaximum(i => -i.x.AsDouble());
+
+            var p1 = p0;
+            do
+            {
+                hullPoints.Add(p1);
+                var p2 = points
+                    .Where(p =>
+                        {
+                            if (p == p1)
+                            {
+                                return false;
+                            }
+
+                            var line = new Line(p1, p);
+                            return points.All(p3 => !p3.IsToRightOfLine(line));
+                        })
+                    .SelectMaximum(i => i.SquaredDistance(p1).AsDouble());
+
+                if (p2 == null)
+                {
+                    break;
+                }
+
+                p1 = p2;
+            } while (p1 != p0);
+
+            return new Polygon(hullPoints);
+        }
+
+        public Matrix MatchHull(Polygon other)
+        {
+            Point thisCenter = this.GetCenter();
+            Point otherCenter = other.GetCenter();
+            var matrix = Matrix.Translate(otherCenter.x - thisCenter.x, otherCenter.y - thisCenter.y);
+            if (this.vertexes.All(p => other.vertexes.Contains(matrix.Transform(p))))
+            {
+                return matrix;
+            }
+
+            return null;
+        }
+
+        public Point GetCenter()
+        {
+            var x = RationalNumber.Zero;
+            var y = RationalNumber.One;
+
+            foreach (var p in vertexes)
+            {
+                x = x + p.x;
+                y = y + p.y;
+            }
+
+            return new Point(x / vertexes.Count, y / vertexes.Count);
+        }
+
         public Polygon Intersect(Polygon other)
         {
             foreach (var srcSegment in this.GetPositiveAreaPolygon().GetLineSegments())
@@ -560,14 +676,14 @@ namespace Solver
                 }
 
                 bool removeDupes = c.Count > other.vertexes.Count;
-                other = new Polygon(c, null);
+                other = new Polygon(c);
                 if (removeDupes)
                 {
                     c = other.GetLineSegments()
                         .Where(i => !i.Item1.Equals(i.Item2))
                         .Select(i => i.Item1)
                         .ToList();
-                    other = new Polygon(c, null);
+                    other = new Polygon(c);
                 }
             }
 
@@ -750,6 +866,13 @@ namespace Solver
         public static Point Random(Random r)
         {
             return new Point(RationalNumber.Random(r), RationalNumber.Random(r));
+        }
+
+        public RationalNumber SquaredDistance(Point p)
+        {
+            var dx = x - p.x;
+            var dy = y - p.y;
+            return dx * dx + dy * dy;
         }
     }
 
@@ -1078,7 +1201,7 @@ namespace Solver
                     vertexes.Add(pt);
                 }
 
-                polys.Add(new Polygon(vertexes, null));
+                polys.Add(new Polygon(vertexes));
             }
 
             line.MoveNext();
@@ -1093,10 +1216,14 @@ namespace Solver
             }
 
             reverseSegments = segments.Select(i => Tuple.Create(i.Item2, i.Item1)).ToList();
+            convexHull = Polygon.GetConvexHull(this.polys);
+            convexHullArea = convexHull.Area();
         }
 
         public List<Polygon> polys { get; private set; }
         public List<Tuple<Point, Point>> segments { get; private set; }
         public List<Tuple<Point, Point>> reverseSegments { get; private set; }
+        public Polygon convexHull { get; private set; }
+        public RationalNumber convexHullArea { get; private set; }
     }
 }
