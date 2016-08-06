@@ -123,7 +123,7 @@ namespace Tests
         [TestMethod]
         public void TestRandomOrigami()
         {
-            var o = Program.CreateRandomPuzzle(6);
+            var o = Program.CreateRandomPuzzle(40);
             Console.WriteLine(o.ToString());
         }
 

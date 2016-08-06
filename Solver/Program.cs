@@ -13,6 +13,7 @@ namespace Solver
     {
         static void Main(string[] args)
         {
+            Console.WriteLine(CreateRandomPuzzle(40));
         }
 
         public static Origami CreateRandomPuzzle(int folds)
@@ -28,12 +29,41 @@ namespace Solver
                     continue;
                 }
 
-                Console.WriteLine(p1.ToString() + "  " + p2.ToString());
+                // Console.WriteLine(p1.ToString() + "  " + p2.ToString());
                 var line = new Line(p1, p2);
                 o = o.Fold(line);
             }
             return o;
         }
+
+        public static Origami Solve(ProblemSpecification ps, Origami origami = null, int depth = 3)
+        {
+            if (depth == 0)
+            {
+                return origami;
+            }
+
+            if (origami == null)
+            {
+                origami = new Origami();
+            }
+
+            double currentSimilarity = 0.0;
+            Origami currentAnswer = null;
+            foreach (var segment in ps.segments.Concat(ps.reverseSegments))
+            {
+                var t = Solve(ps, origami.Fold(new Line(segment)), depth - 1);
+                var ts = t.Compare(ps.polys); 
+                if (ts >= currentSimilarity)
+                {
+                    currentAnswer = t;
+                    currentSimilarity = ts;
+                }
+            }
+
+            return currentAnswer;
+        }
+
 
         public static void Assert(bool pred)
         {
@@ -183,33 +213,137 @@ namespace Solver
             return ans;
         }
 
+        class Section
+        {
+            public Section(int thisCount, int otherCount, Polygon poly)
+            {
+                ThisCount = thisCount;
+                OtherCount = otherCount;
+                Poly = poly;
+            }
+
+            public int ThisCount { get; set; }
+            public int OtherCount { get; set; }
+            public Polygon Poly { get; set; }
+        }
+
+        public static double Area(
+            List<Polygon> thisList,
+            List<Polygon> otherList = null)
+        {
+            var sections = new List<Section>();
+
+            foreach (var poly in thisList)
+            {
+                var newSections = sections
+                    .Select(s => new Section(s.ThisCount + 1, s.OtherCount, poly.Intersect(s.Poly)))
+                    .Where(s => s.Poly != null)
+                    .ToList();
+                sections.AddRange(newSections);
+                sections.Add(new Section(1, 0, poly));
+            }
+
+            if (otherList != null)
+            {
+                foreach (var poly in otherList)
+                {
+                    var newSections = sections
+                        .Select(s => new Section(s.ThisCount, s.OtherCount + 1, poly.Intersect(s.Poly)))
+                        .Where(s => s.Poly != null)
+                        .ToList();
+                    sections.AddRange(newSections);
+                    sections.Add(new Section(0, 1, poly));
+                }
+            }
+
+            double area = 0.0;
+            foreach (var s in sections)
+            {
+                int multiplier =
+                    otherList != null && (s.ThisCount == 0 || s.OtherCount == 0) ? 0 :
+                    otherList != null && ((s.ThisCount & 1) != (s.OtherCount & 1)) ? -1 :
+                    otherList == null && ((s.ThisCount & 1) == 0) ? -1 :
+                    1;
+                area = area + multiplier * Math.Abs(s.Poly.Area().AsDouble());
+            }
+            return area;
+        }
+
         public double Compare(List<Polygon> otherPolys)
         {
             var thisPolys = this.GetUniquePolys();
-            var c = 0;
-            var n = 10;
-            var positivePolys = otherPolys.Where(p => p.Area().n >= 0).ToList();
-            var negativePolys = otherPolys.Where(p => p.Area().n < 0).Select(p => p.GetPositiveAreaPolygon()).ToList();
-            for (var x = 0; x < n; ++x)
+            double intersectionArea = Area(thisPolys, otherPolys);
+            return intersectionArea / (Area(thisPolys) + Area(otherPolys) - intersectionArea);
+        }
+
+        //public double Compare(List<Polygon> otherPolys)
+        //{
+        //    var thisPolys = this.GetUniquePolys();
+        //    var bounds = GetBounds(thisPolys, otherPolys);
+        //    var c = 0;
+        //    var n = 10;
+        //    var dx = (bounds.Item2.x - bounds.Item1.x) / (n - 1);
+        //    var dy = (bounds.Item2.y - bounds.Item1.y) / (n - 1);
+        //    var positivePolys = otherPolys.Where(p => p.Area().n >= 0).ToList();
+        //    var negativePolys = otherPolys.Where(p => p.Area().n < 0).Select(p => p.GetPositiveAreaPolygon()).ToList();
+        //    for (var x = 0; x < n; ++x)
+        //    {
+        //        for (var y = 0; y < n; ++y)
+        //        {
+        //            var xy = new Point(bounds.Item1.x + x * dx, bounds.Item1.y + y * dy);
+        //            var isInsideThis = thisPolys.Any(p => p.ContainsPoint(xy));
+        //            var isInsideOther = 
+        //                positivePolys.Any(p => p.ContainsPoint(xy)) && 
+        //                negativePolys.All(p => !p.ContainsPoint(xy));
+        //            if (isInsideThis == isInsideOther)
+        //            {
+        //                ++c;
+        //            }
+        //            else
+        //            {
+        //                c = c + 0;
+        //            }
+        //        }
+        //    }
+        //    return c / ((double)n * n);
+        //}
+
+        public Tuple<Point, Point> GetBounds(List<Polygon> p1, List<Polygon> p2)
+        {
+            RationalNumber minX = 0;
+            RationalNumber maxX = 0;
+            RationalNumber minY = 0;
+            RationalNumber maxY = 0;
+
+            bool firstIter = true;
+
+            foreach (var poly in p1.Concat(p2))
             {
-                for (var y = 0; y < n; ++y)
+                foreach (var v in poly.vertexes)
                 {
-                    var xy = new Point(new RationalNumber(x, n - 1), new RationalNumber(y, n - 1));
-                    var isInsideThis = thisPolys.Any(p => p.ContainsPoint(xy));
-                    var isInsideOther = 
-                        positivePolys.Any(p => p.ContainsPoint(xy)) && 
-                        negativePolys.All(p => !p.ContainsPoint(xy));
-                    if (isInsideThis == isInsideOther)
+                    if (firstIter || v.x < minX)
                     {
-                        ++c;
+                        minX = v.x;
                     }
-                    else
+
+                    if (firstIter || v.y < minY)
                     {
-                        c = c + 0;
+                        minY = v.y;
+                    }
+
+                    if (firstIter || v.x > maxX)
+                    {
+                        maxX = v.x;
+                    }
+
+                    if (firstIter || v.y < maxY)
+                    {
+                        maxY = v.y;
                     }
                 }
             }
-            return c / ((double)n * n);
+
+            return Tuple.Create(new Point(minX, minY), new Point(maxX, maxY));
         }
 
         public List<Polygon> polys { get; private set; }
@@ -331,14 +465,14 @@ namespace Solver
 
         public bool ContainsPoint(Point point)
         {
-            return GetLineSegments().All(seg => point.IsToRightOfLine(new Line(seg.Item2, seg.Item1)));
+            return GetLineSegments().All(seg => !point.IsToRightOfLine(new Line(seg)));
         }
 
         public Polygon Intersect(Polygon other)
         {
             foreach (var srcSegment in this.GetPositiveAreaPolygon().GetLineSegments())
             {
-                var line = new Line(srcSegment.Item1, srcSegment.Item2);
+                var line = new Line(srcSegment);
                 var c = new List<Point>();
                 foreach (var destSegment in other.GetLineSegments())
                 {
@@ -385,6 +519,11 @@ namespace Solver
     // Represents lines of the form ax + by + c = 0
     public class Line
     {
+        public Line(Tuple<Point, Point> segment)
+            : this (segment.Item1, segment.Item2)
+        {
+        }
+
         public Line(Point p1, Point p2)
         {
             var dy = p2.y - p1.y;
@@ -718,6 +857,16 @@ namespace Solver
 
         public static RationalNumber Zero = new RationalNumber(0);
         public static RationalNumber One = new RationalNumber(1);
+
+        public RationalNumber Abs()
+        {
+            if (n >= 0)
+            {
+                return this;
+            }
+
+            return new RationalNumber(-n, d);
+        }
     }
 
     public class Matrix
@@ -857,9 +1006,12 @@ namespace Solver
                 var p2 = Point.Parse(fields[1]);
                 segments.Add(Tuple.Create(p1, p2));
             }
+
+            reverseSegments = segments.Select(i => Tuple.Create(i.Item2, i.Item1)).ToList();
         }
 
         public List<Polygon> polys { get; private set; }
         public List<Tuple<Point, Point>> segments { get; private set; }
+        public List<Tuple<Point, Point>> reverseSegments { get; private set; }
     }
 }
