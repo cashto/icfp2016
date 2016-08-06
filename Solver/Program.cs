@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Numerics;
 
 
 namespace Solver
@@ -236,10 +237,14 @@ namespace Solver
                 var x = line.Intersect(segment.Item1, segment.Item2);
                 (useAns1 ? ans1 : ans2).Add(segment.Item1);
 
-                if (x != null && !x.Equals(segment.Item2))
+                if (x != null && !segment.Item2.Equals(x))
                 {
+                    if (!segment.Item1.Equals(x))
+                    {
+                        (useAns1 ? ans1 : ans2).Add(x);
+                    }
+
                     xs.Add(x);
-                    (useAns1 ? ans1 : ans2).Add(x);
                     useAns1 = !useAns1;
                     (useAns1 ? ans1 : ans2).Add(x);
                 }

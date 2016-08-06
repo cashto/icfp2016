@@ -123,7 +123,7 @@ namespace Tests
         [TestMethod]
         public void TestRandomOrigami()
         {
-            var o = Program.CreateRandomPuzzle(4);
+            var o = Program.CreateRandomPuzzle(6);
             Console.WriteLine(o.ToString());
         }
 
@@ -144,15 +144,19 @@ namespace Tests
             Assert.AreEqual(1, o2.polys.Count);
 
             o = new Origami();
-            o2 = o.Fold(new Line(
-                new Point(new RationalNumber(1, 2), 1),
-                new Point(new RationalNumber(2, 3), 0)));
-            var o3 = o2.Fold(new Line(
-                new Point(new RationalNumber(1, 3), new RationalNumber(1, 3)),
-                new Point(new RationalNumber(1, 2), 1)));
-            var o4 = o3.Fold(new Line(
-                new Point(0, 0),
-                new Point(new RationalNumber(2, 3), 0)));
+            //o2 = o.Fold(new Line(
+            //    new Point(new RationalNumber(1, 2), 1),
+            //    new Point(new RationalNumber(2, 3), 0)));
+            //var o3 = o2.Fold(new Line(
+            //    new Point(new RationalNumber(1, 3), new RationalNumber(1, 3)),
+            //    new Point(new RationalNumber(1, 2), 1)));
+            //var o4 = o3.Fold(new Line(
+            //    new Point(0, 0),
+            //    new Point(new RationalNumber(2, 3), 0)));
+                o2 = o. Fold(new Line(Point.Parse("3/4,1"), Point.Parse("0,0")));
+            var o3 = o2.Fold(new Line(Point.Parse("1,1"), Point.Parse("0,1")));
+            var o4 = o3.Fold(new Line(Point.Parse("0,1/3"), Point.Parse("1,1/2")));
+            var o5 = o4.Fold(new Line(Point.Parse("3/4,1"), Point.Parse("0,0")));
         }
 
         [TestMethod]
