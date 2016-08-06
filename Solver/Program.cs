@@ -407,7 +407,7 @@ namespace Solver
             Program.Assert(this.ContainsPoint(p2));
         }
 
-        private Line(Point p, long a_, long b_)
+        private Line(Point p, BigInteger a_, BigInteger b_)
         {
             a = a_;
             b = b_;
@@ -472,8 +472,8 @@ namespace Solver
             return (a * p.x + b * p.y + c).n == 0;
         }
 
-        public long a { get; private set; }
-        public long b { get; private set; }
+        public BigInteger a { get; private set; }
+        public BigInteger b { get; private set; }
         public RationalNumber c { get; private set; }
     }
 
@@ -555,13 +555,29 @@ namespace Solver
     public class RationalNumber
     {
         public RationalNumber(long n_, long d_ = 1)
+            : this(new BigInteger(n_), new BigInteger(d_))
+        {
+        }
+
+        private static BigInteger Abs(BigInteger x)
+        {
+            if (x.Sign >= 0)
+            {
+                return x;
+            }
+
+            return -x;
+        }
+        
+        public RationalNumber(BigInteger n_, BigInteger d_)
         {
             if (d_ == 0)
             {
                 throw new Exception("division by 0");
             }
 
-            long t = gcd(Math.Abs(n_), Math.Abs(d_));
+            
+            var t = gcd(Abs(n_), Abs(d_));
             n = n_ / t;
             d = d_ / t;
 
@@ -577,8 +593,13 @@ namespace Solver
             return new RationalNumber(x, 1);
         }
 
-        public long n { get; private set; }
-        public long d { get; private set; }
+        public static implicit operator RationalNumber(BigInteger x)
+        {
+            return new RationalNumber(x, 1);
+        }
+
+        public BigInteger n { get; private set; }
+        public BigInteger d { get; private set; }
 
         public static RationalNumber operator+ (RationalNumber a, RationalNumber b)
         {
@@ -658,7 +679,7 @@ namespace Solver
             return n.ToString() + "/" + d.ToString();
         }
 
-        public static long gcd(long x, long y)
+        public static BigInteger gcd(BigInteger x, BigInteger y)
         {
             if (x < y)
             {
@@ -667,7 +688,7 @@ namespace Solver
 
             while (y != 0)
             {
-                long t = y;
+                var t = y;
                 y = x % y;
                 x = t;
             }
