@@ -20,16 +20,10 @@ namespace Solver
             //Console.WriteLine(CreateRandomPuzzle(cheatMatrix));
             //Environment.Exit(0);
 
-            var problemsToSolve = File.ReadAllLines(args[0]);
-            Parallel.ForEach(
-                problemsToSolve,
-                new ParallelOptions() { MaxDegreeOfParallelism = 80 },
-                i => {
-                var ps = new ProblemSpecification(File.ReadAllText("/icfp2016/work/probs/" + i));
-                var ans = Program.Solve(ps, 3);
-                Console.WriteLine("{0}: {1}", i, ans.Compare(ps.polys));
-                File.WriteAllText("/icfp/work/solutions/" + i, ans.ToString());
-            });
+            var ps = new ProblemSpecification(File.ReadAllText("/icfp2016/work/probs/" + args[0]));
+            var ans = Program.Solve(ps, 1);
+            File.WriteAllText("/icfp2016/work/solutions/" + args[0], ans.ToString());
+            Console.WriteLine(ans.Compare(ps.polys));
         }
 
         public static Origami CreateRandomPuzzle(Matrix cheatMatrix)
@@ -69,6 +63,10 @@ namespace Solver
             if (origami == null)
             {
                 origami = new Origami();
+                if (origami.Compare(ps.polys) == 1.0)
+                {
+                    return origami;
+                }
             }
 
             double currentSimilarity = 0.0;
