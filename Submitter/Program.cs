@@ -55,13 +55,13 @@ namespace Submitter
             Db = JsonConvert.DeserializeObject<DbEntity>(File.ReadAllText("/icfp2016/work/db.json"));
             Snapshot = JsonConvert.DeserializeObject<SnapshotEntity>(File.ReadAllText("/icfp2016/work/current.json"));
             LastSubmitTime = DateTime.MinValue;
-            // var problems = File.ReadAllLines(args[0]);
+            var problems = File.ReadAllLines("/icfp2016/work/in.txt");
             //var problems = new List<string>();
             //for (var i = 1; i < 100; ++i)
             //{
             //    problems.Add(i.ToString());
             //}
-            var problems = Snapshot.problems.Select(i => i.problem_id.ToString());
+            //var problems = Snapshot.problems.Select(i => i.problem_id.ToString());
             
             Problems = problems.AsEnumerable<string>().GetEnumerator();
             TaskCount = 1;
@@ -110,18 +110,20 @@ namespace Submitter
         {
             try
             {
-                Console.Out.WriteLine("Solving #{0} ({1})", snapshotProblem.problem_id, snapshotProblem.problem_spec_hash.Substring(0, 9));
+                //Console.Out.WriteLine("Solving #{0} ({1})", snapshotProblem.problem_id, snapshotProblem.problem_spec_hash.Substring(0, 9));
                 var ans = await SolveOneImpl(snapshotProblem);
-                Console.Out.WriteLine("Solved  #{0} ({1}): {2} {3}", 
-                    snapshotProblem.problem_id,
-                    snapshotProblem.problem_spec_hash.Substring(0, 9),
-                    ans.mySimilarity,
-                    ans.serverSimilarity);
+                //Console.Out.WriteLine("Solved  #{0} ({1}): {2} {3}", 
+                    //snapshotProblem.problem_id,
+                    //snapshotProblem.problem_spec_hash.Substring(0, 9),
+                    //ans.mySimilarity,
+                    //ans.serverSimilarity);
             }
             catch (Exception e)
             {
-                Console.Out.WriteLine("Error #{0} ({1}): {2}", snapshotProblem.problem_id, snapshotProblem.problem_spec_hash, e.ToString());
+                //Console.Out.WriteLine("Error #{0} ({1}): {2}", snapshotProblem.problem_id, snapshotProblem.problem_spec_hash, e.ToString());
             }
+
+            await Task.Yield();
 
             CompleteOne();
         }
@@ -131,10 +133,16 @@ namespace Submitter
             lock (syncRoot)
             {
                 var problem = Db.problems.FirstOrDefault(i => i.id == snapshotProblem.problem_id);
-                if (problem != null && problem.serverSimilarity > 0.8)
+                if (problem != null)
                 {
-                    // I've already solved this one.
-                    return problem;
+                    var lastServerResult = problem.lastServerResult ?? "";
+                    if (problem.serverSimilarity == 1.0 ||
+                        lastServerResult.Contains("to an own problem."))
+                        // lastServerResult.Contains("Solution size limit exceeded"))
+                    {
+                        // I've already solved this one.
+                        return problem;
+                    }
                 }
             }
 
@@ -174,12 +182,15 @@ namespace Submitter
 
             await Task.Delay(submitTime - DateTime.UtcNow);
 
+            Console.WriteLine("  Sending solution for #{0} ({1})", snapshotProblem.problem_id, snapshotProblem.problem_spec_hash);
+
             var serverResult = await ExecProcessAsync(
                 CURL,
                 string.Format("--compressed -L -H Expect: -H 'X-API-Key: 61-d481c90ded9129b1fa54f905fa3d4eeb' -F 'problem_id={0}' -F 'solution_spec=@d:\\icfp2016\\work\\solutions\\{1}' 'http://2016sv.icfpcontest.org/api/solution/submit'",
                     snapshotProblem.problem_id,
                     snapshotProblem.problem_spec_hash));
             //var serverResult = "{ \"ok\": true, \"resemblance\": 1.0 }";
+            Console.WriteLine("  Got solution for #{0} ({1}): {2}", snapshotProblem.problem_id, snapshotProblem.problem_spec_hash, serverResult);
             var serverResultEntity = JsonConvert.DeserializeObject<SolutionResponseEntity>(serverResult);
 
             lock (syncRoot)

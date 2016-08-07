@@ -27,6 +27,24 @@ namespace Solver
 
         public static void Main(string[] args)
         {
+            //var input = File.ReadAllLines("in.txt");
+            //Console.WriteLine("[");
+            //foreach (var file in input)
+            //{
+            //    var ps = new ProblemSpecification(File.ReadAllText("/icfp2016/work/probs/" + file));
+            //    var isConvex = ps.polys.Count == 1 && ps.polys.First().Area().Equals(ps.convexHullArea);
+            //    if (isConvex)
+            //    {
+            //        Console.WriteLine("{{ \"id\": \"{0}\", \"area\": {1} }}, ", file, ps.convexHullArea.AsDouble());
+            //    }
+            //}
+            //Console.WriteLine("]");
+
+            SolveMain(args);
+        }
+
+        public static void SolveMain(string[] args)
+        {
             TimeSpan timeout = TimeSpan.FromSeconds((args.Length == 2) ? int.Parse(args[1]) : 10);
             Deadline = DateTime.UtcNow + timeout;
             var ps = new ProblemSpecification(File.ReadAllText("/icfp2016/work/probs/" + args[0]));
@@ -155,17 +173,41 @@ namespace Solver
         {
             var origami = new Origami();
 
-            var oneHalf = new RationalNumber(1, 2);
-            var center = ps.convexHull.GetCenter();
-            var matrix = Matrix.Translate(oneHalf - center.x, oneHalf - center.y);
+            var lengths = ps.convexHull.GetLineSegments().Select((a) => a.Item1.SquaredDistance(a.Item2)).ToList();
+            var longestSegment = ps.convexHull
+                .GetLineSegments()
+                .Where((a) => {
+                    var d = a.Item1.SquaredDistance(a.Item2);
+                    return d <= RationalNumber.One && d.Sqrt() != null;
+                })
+                .SelectBest((a, b) => a.Item1.SquaredDistance(a.Item2) > b.Item1.SquaredDistance(b.Item2));
+            var p = new Point(longestSegment.Item2.x - longestSegment.Item1.x, longestSegment.Item2.y - longestSegment.Item1.y);
+            var dist = longestSegment.Item1.SquaredDistance(longestSegment.Item2).Sqrt();
+            var rotationMatrix = Matrix.Rotate(-p.y / dist, p.x / dist);
+
+            var rotatedHull = ps.convexHull.Transform(rotationMatrix);
+            var bottomLeft = rotatedHull.vertexes
+                .SelectBest((a,b) => a.x < b.x || a.x.Equals(b.x) && a.y < b.y);
+            var translationMatrix = Matrix.Translate(-bottomLeft.x, -bottomLeft.y);
+            
+
+            //var oneHalf = new RationalNumber(1, 2);
+            //var center = ps.convexHull.GetCenter();
+            //var matrix = Matrix.Translate(oneHalf - center.x, oneHalf - center.y);
+            var matrix = translationMatrix * rotationMatrix;
             var hull = ps.convexHull.Transform(matrix);
 
-            for (var i = 0; i < 5; ++i)
+            for (var i = 0; i < 10; ++i)
             {
                 foreach (var seg in hull.GetLineSegments())
                 {
                     var line = new Line(seg);
-                    origami = origami.Fold(line);
+                    var newOrigami = origami.Fold(line);
+                    if (newOrigami.ToString().Length > 4750)
+                    {
+                        break;
+                    }
+                    origami = newOrigami;
                 }
             }
 
@@ -1115,6 +1157,20 @@ namespace Solver
                 d = -d;
                 n = -n;
             }
+        }
+
+        public RationalNumber Sqrt()
+        {
+            var absn = n >= 0 ? n : -n;
+            var sqrtn = Math.Sqrt((double)absn);
+            var sqrtd = Math.Sqrt((double)d);
+            if (Math.Floor(sqrtn) != sqrtn ||
+                Math.Floor(sqrtd) != sqrtd)
+            {
+                return null;
+            }
+
+            return new RationalNumber((int)sqrtn, (int)sqrtd);
         }
 
         public static implicit operator RationalNumber(long x)

@@ -208,7 +208,17 @@ namespace Tests
         [TestMethod]
         public void TestSolver()
         {
-            Program.Main(new string[] { "b3f88b8571e51a08c8173563c58d6677971f32be", "100000" });
+              //"id": 48,
+              //"problem_spec_hash": "345f24dff004a8f605b61e2425ce55d503c95348",
+              //"id": 51,
+              //"problem_spec_hash": "8a87aa3143d1ec1156393cc6447ee982990a06f6",
+              //"id": 54,
+              //"problem_spec_hash": "9dfeb3751d840e96af35c7d865dfe0a015808e04",
+              //"id": 55,
+              //"problem_spec_hash": "c5c40205033d8d041178fda11d3d32a746852a4c",
+              //"id": 56,
+              //"problem_spec_hash": "10d540827a99831b09e8a2a1839b6f41089a9b3e",
+            Program.SolveMain(new string[] { "ac0ba1b46641b7bea12e471c7e4923162f20a7d8", "100000" });
         }
 
         [TestMethod]
