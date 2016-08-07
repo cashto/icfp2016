@@ -27,20 +27,23 @@ namespace Solver
 
         public static void Main(string[] args)
         {
-            //var input = File.ReadAllLines("in.txt");
-            //Console.WriteLine("[");
-            //foreach (var file in input)
-            //{
-            //    var ps = new ProblemSpecification(File.ReadAllText("/icfp2016/work/probs/" + file));
-            //    var isConvex = ps.polys.Count == 1 && ps.polys.First().Area().Equals(ps.convexHullArea);
-            //    if (isConvex)
-            //    {
-            //        Console.WriteLine("{{ \"id\": \"{0}\", \"area\": {1} }}, ", file, ps.convexHullArea.AsDouble());
-            //    }
-            //}
-            //Console.WriteLine("]");
-
             SolveMain(args);
+        }
+
+        public static void FindLhfMain(string[] args)
+        {
+            var input = File.ReadAllLines("in.txt");
+            Console.WriteLine("[");
+            foreach (var file in input)
+            {
+                var ps = new ProblemSpecification(File.ReadAllText("/icfp2016/work/probs/" + file));
+                var isConvex = ps.polys.Count == 1 && ps.polys.First().Area().Equals(ps.convexHullArea);
+                if (isConvex)
+                {
+                    Console.WriteLine("{{ \"id\": \"{0}\", \"area\": {1} }}, ", file, ps.convexHullArea.AsDouble());
+                }
+            }
+            Console.WriteLine("]");
         }
 
         public static void SolveMain(string[] args)
@@ -48,11 +51,7 @@ namespace Solver
             TimeSpan timeout = TimeSpan.FromSeconds((args.Length == 2) ? int.Parse(args[1]) : 10);
             Deadline = DateTime.UtcNow + timeout;
             var ps = new ProblemSpecification(File.ReadAllText("/icfp2016/work/probs/" + args[0]));
-            Origami ans = null; // Program.SolveExact(ps, 3);
-            if (ans == null)
-            {
-                ans = Program.SolveApproximate(ps);
-            }
+            Origami ans = Program.SolveApproximate(ps);
             File.WriteAllText("/icfp2016/work/solutions/" + args[0], ans.ToString());
             Console.WriteLine(1);
         }
@@ -173,29 +172,23 @@ namespace Solver
         {
             var origami = new Origami();
 
-            var lengths = ps.convexHull.GetLineSegments().Select((a) => a.Item1.SquaredDistance(a.Item2)).ToList();
-            var longestSegment = ps.convexHull
-                .GetLineSegments()
-                .Where((a) => {
-                    var d = a.Item1.SquaredDistance(a.Item2);
-                    return d <= RationalNumber.One && d.Sqrt() != null;
-                })
-                .SelectBest((a, b) => a.Item1.SquaredDistance(a.Item2) > b.Item1.SquaredDistance(b.Item2));
-            var p = new Point(longestSegment.Item2.x - longestSegment.Item1.x, longestSegment.Item2.y - longestSegment.Item1.y);
-            var dist = longestSegment.Item1.SquaredDistance(longestSegment.Item2).Sqrt();
-            var rotationMatrix = Matrix.Rotate(-p.y / dist, p.x / dist);
-
-            var rotatedHull = ps.convexHull.Transform(rotationMatrix);
-            var bottomLeft = rotatedHull.vertexes
-                .SelectBest((a,b) => a.x < b.x || a.x.Equals(b.x) && a.y < b.y);
-            var translationMatrix = Matrix.Translate(-bottomLeft.x, -bottomLeft.y);
-            
-
-            //var oneHalf = new RationalNumber(1, 2);
-            //var center = ps.convexHull.GetCenter();
-            //var matrix = Matrix.Translate(oneHalf - center.x, oneHalf - center.y);
-            var matrix = translationMatrix * rotationMatrix;
+            var matrix = ps.convexHull.FitToUnitSquare();
             var hull = ps.convexHull.Transform(matrix);
+            var hullTopRight = hull.GetTopRight();
+
+            var right = RationalNumber.One;
+            while (right / 2 > hullTopRight.x)
+            {
+                right = right / 2;
+                origami = origami.Fold(new Line(new Point(right, 0), new Point(right, 1)));
+            }
+
+            //var top = RationalNumber.One;
+            //while (top / 2 > hullTopRight.y)
+            //{
+            //    top = top / 2;
+            //    origami = origami.Fold(new Line(new Point(1, top), new Point(0, top)));
+            //}
 
             for (var i = 0; i < 10; ++i)
             {
@@ -213,60 +206,6 @@ namespace Solver
 
             origami.matrix = matrix.Invert();
             return origami;
-        }
-
-        public static Origami SolveExact(ProblemSpecification ps, int depth = 3, Origami origami = null)
-        {
-            if (DateTime.UtcNow > Deadline)
-            {
-                return null;
-            }
-
-            if (origami == null)
-            {
-                origami = new Origami();
-            }
-
-            var origamiHull = Polygon.GetConvexHull(origami.polys.Select(i => i.GetPositiveAreaPolygon()));
-            if (origamiHull.Area().Equals(ps.convexHullArea))
-            {
-                var matrix = origamiHull.MatchHull(ps.convexHull);
-                if (matrix != null && origami.IsExactMatch(ps.polys, matrix))
-                {
-                    origami.matrix = matrix;
-                    return origami;
-                }
-            }
-
-            // Do a fold!
-            if (depth > 0)
-            {
-                foreach (var segment in ps.segments)
-                {
-                    var line = new Line(segment);
-                    var foldedOrigami = origami.Fold(line);
-                    if (foldedOrigami.polys.Count != origami.polys.Count)
-                    {
-                        var t = SolveExact(ps, depth - 1, foldedOrigami);
-                        if (t != null)
-                        {
-                            return t;
-                        }
-                    }
-
-                    // Do box folds
-                    //foreach (var boxFoldedOrigami in origami.GetBoxFolds(line))
-                    //{
-                    //    var t = SolveExact(ps, depth - 1, boxFoldedOrigami);
-                    //    if (t != null)
-                    //    {
-                    //        return t;
-                    //    }
-                    //}
-                }
-            }
-
-            return null;
         }
 
         public static void Assert(bool pred)
@@ -935,6 +874,68 @@ namespace Solver
             }
 
             return other;
+        }
+
+        public bool IsConvex()
+        {
+            return Polygon.GetConvexHull(new List<Polygon>() { this }).Area().Equals(this.Area());
+        }
+
+        public static IEnumerable<Tuple<Point, Point>> CalculateDesperationSegments()
+        {
+            var p1 = Point.Parse("0,0");
+            var p2 = Point.Parse("1,0");
+            var p3 = Point.Parse("0,1");
+            var matrix = Matrix.Rotate(RationalNumber.Parse("11/61"), RationalNumber.Parse("60/61"));
+
+            for (var i = 0; i < 8; ++i)
+            {
+                p2 = matrix.Transform(p2);
+                yield return Tuple.Create(p1, p2);
+                p3 = matrix.Transform(p3);
+                yield return Tuple.Create(p1, p3);
+            }
+        }
+
+        private static List<Tuple<Point, Point>> desperationSegments = CalculateDesperationSegments().ToList();
+
+        public Matrix FitToUnitSquare()
+        {
+            foreach (var seg in this.GetLineSegments().Concat(desperationSegments))
+            {
+                var dd = seg.Item1.SquaredDistance(seg.Item2);
+                var d = dd.Sqrt();
+                if (d == null)
+                {
+                    continue;
+                }
+
+                var pt = new Point(seg.Item2.x - seg.Item1.x, seg.Item2.y - seg.Item1.y);
+                var rotationMatrix = Matrix.Rotate(-pt.y / d, pt.x / d);
+                var rotatedPoly = this.Transform(rotationMatrix);
+
+                var dx = rotatedPoly.vertexes.SelectBest((a, b) => a.x < b.x).x;
+                var dy = rotatedPoly.vertexes.SelectBest((a, b) => a.y < b.y).y;
+                var translationMatrix = Matrix.Translate(-dx, -dy);
+                var movedPoly = rotatedPoly.Transform(translationMatrix);
+
+                if (movedPoly.vertexes.Any(i => i.x > RationalNumber.One || i.y > RationalNumber.One))
+                {
+                    continue;
+                }
+
+                return matrix = translationMatrix * rotationMatrix;
+            }
+
+            Program.Assert(false);
+            return null;
+        }
+
+        public Point GetTopRight()
+        {
+            return new Point(
+                this.vertexes.SelectBest((a, b) => a.x > b.x).x,
+                this.vertexes.SelectBest((a, b) => a.y > b.y).y);
         }
 
         public List<Point> vertexes { get; private set; }

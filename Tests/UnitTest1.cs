@@ -208,17 +208,7 @@ namespace Tests
         [TestMethod]
         public void TestSolver()
         {
-              //"id": 48,
-              //"problem_spec_hash": "345f24dff004a8f605b61e2425ce55d503c95348",
-              //"id": 51,
-              //"problem_spec_hash": "8a87aa3143d1ec1156393cc6447ee982990a06f6",
-              //"id": 54,
-              //"problem_spec_hash": "9dfeb3751d840e96af35c7d865dfe0a015808e04",
-              //"id": 55,
-              //"problem_spec_hash": "c5c40205033d8d041178fda11d3d32a746852a4c",
-              //"id": 56,
-              //"problem_spec_hash": "10d540827a99831b09e8a2a1839b6f41089a9b3e",
-            Program.SolveMain(new string[] { "ac0ba1b46641b7bea12e471c7e4923162f20a7d8", "100000" });
+            Program.SolveMain(new string[] { "2c92fc693158257005f951041d48026dcf843d4f" });
         }
 
         [TestMethod]
@@ -283,6 +273,42 @@ namespace Tests
             o = o.Fold(new Line(Point.Parse("1/2,1/2"), Point.Parse("1/2,1")));
             var boxFolds = o.GetBoxFolds(new Line(Point.Parse("1/2,1/2"), Point.Parse("1/2,1"))).ToList();
             
+        }
+
+        [TestMethod]
+        public void TestSplitPolygon()
+        {
+            var poly = new Polygon(new List<Point>()
+            {
+                Point.Parse("1,0"),
+                Point.Parse("2,1"),
+                Point.Parse("2,2"),
+                Point.Parse("1,2"),
+                Point.Parse("1,1"),
+                Point.Parse("0,1"),
+                Point.Parse("0,0")
+            });
+
+            Assert.IsFalse(poly.IsConvex());
+
+            for (var i = 0; i < poly.vertexes.Count; ++i)
+            {
+                for (var j = i + 1; j < poly.vertexes.Count; ++j)
+                {
+                    var line = new Line(poly.vertexes[i], poly.vertexes[j]);
+                    var rightPoly = new Polygon(poly.vertexes.Where(pt => pt.IsToRightOfLine(line)).ToList());
+                    var leftPoly = new Polygon(poly.vertexes.Where(pt => pt.IsToRightOfLine(line)).ToList());
+                    if (leftPoly.Area().n != 0 && 
+                        rightPoly.Area().n != 0 &&
+                        leftPoly.IsConvex() &&
+                        rightPoly.IsConvex())
+                    {
+                        return;
+                    }
+                }
+            }
+
+            Assert.Fail();
         }
     }
 }

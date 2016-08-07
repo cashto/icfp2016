@@ -15,6 +15,11 @@ namespace Submitter
         public double resemblance { get; set; }
     }
 
+    class ConvexProbsEntity
+    {
+        public string id { get; set; }
+        public double area { get; set; }
+    }
 
     class SnapshotEntity
     {
@@ -54,14 +59,19 @@ namespace Submitter
         {
             Db = JsonConvert.DeserializeObject<DbEntity>(File.ReadAllText("/icfp2016/work/db.json"));
             Snapshot = JsonConvert.DeserializeObject<SnapshotEntity>(File.ReadAllText("/icfp2016/work/current.json"));
+            var convexProbs = JsonConvert.DeserializeObject<List<ConvexProbsEntity>>(File.ReadAllText("/icfp2016/work/convexprobs.json"));
+
             LastSubmitTime = DateTime.MinValue;
-            var problems = File.ReadAllLines("/icfp2016/work/in.txt");
+            //var problems = File.ReadAllLines("/icfp2016/work/in.txt");
             //var problems = new List<string>();
             //for (var i = 1; i < 100; ++i)
             //{
             //    problems.Add(i.ToString());
             //}
-            //var problems = Snapshot.problems.Select(i => i.problem_id.ToString());
+            var problems = Snapshot.problems
+                .Where(i => convexProbs.Any(c => c.id == i.problem_spec_hash))
+                .Select(i => i.problem_id.ToString())
+                .ToList();
             
             Problems = problems.AsEnumerable<string>().GetEnumerator();
             TaskCount = 1;
@@ -81,7 +91,7 @@ namespace Submitter
             {
                 lock (syncRoot)
                 {
-                    if (TaskCount == 40)
+                    if (TaskCount == 2)
                     {
                         return;
                     }
@@ -138,7 +148,6 @@ namespace Submitter
                     var lastServerResult = problem.lastServerResult ?? "";
                     if (problem.serverSimilarity == 1.0 ||
                         lastServerResult.Contains("to an own problem."))
-                        // lastServerResult.Contains("Solution size limit exceeded"))
                     {
                         // I've already solved this one.
                         return problem;
