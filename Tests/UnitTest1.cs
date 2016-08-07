@@ -54,8 +54,7 @@ namespace Tests
                 new Point(0, new RationalNumber(1, 2))));
 
             ProblemSpecification ps = new ProblemSpecification(ExampleProblemSpec);
-            var similarity = o2.Compare(ps.polys);
-            Assert.AreEqual(1.0, similarity);
+            Assert.IsTrue(o2.IsExactMatch(ps.polys, Matrix.Identity));
 
             Console.Out.WriteLine("ToString:");
             Console.Out.WriteLine(o2.ToString());
@@ -209,7 +208,7 @@ namespace Tests
         [TestMethod]
         public void TestSolver()
         {
-            Program.Main(new string[] { "0f6a257730c173700166a509ac9c9c921e4bcceb", "1000000" });
+            Program.Main(new string[] { "b3f88b8571e51a08c8173563c58d6677971f32be", "100000" });
         }
 
         [TestMethod]
@@ -264,6 +263,16 @@ namespace Tests
             matrix = poly.MatchHull(flippedPoly);
             Assert.AreNotEqual(null, matrix);
             Assert.AreEqual(poly.Area(), poly.Transform(matrix).Intersect(flippedPoly).Area().Abs());
+        }
+
+        //[TestMethod]
+        public void TestBoxFold()
+        {
+            var o = new Origami();
+            o = o.Fold(new Line(Point.Parse("0,0"), Point.Parse("1/2,1/2")));
+            o = o.Fold(new Line(Point.Parse("1/2,1/2"), Point.Parse("1/2,1")));
+            var boxFolds = o.GetBoxFolds(new Line(Point.Parse("1/2,1/2"), Point.Parse("1/2,1"))).ToList();
+            
         }
     }
 }

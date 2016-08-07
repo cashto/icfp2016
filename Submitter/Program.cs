@@ -56,11 +56,12 @@ namespace Submitter
             Snapshot = JsonConvert.DeserializeObject<SnapshotEntity>(File.ReadAllText("/icfp2016/work/current.json"));
             LastSubmitTime = DateTime.MinValue;
             // var problems = File.ReadAllLines(args[0]);
-            var problems = new List<string>();
-            for (var i = 1; i < 100; ++i)
-            {
-                problems.Add(i.ToString());
-            }
+            //var problems = new List<string>();
+            //for (var i = 1; i < 100; ++i)
+            //{
+            //    problems.Add(i.ToString());
+            //}
+            var problems = Snapshot.problems.Select(i => i.problem_id.ToString());
             
             Problems = problems.AsEnumerable<string>().GetEnumerator();
             TaskCount = 1;
@@ -130,7 +131,7 @@ namespace Submitter
             lock (syncRoot)
             {
                 var problem = Db.problems.FirstOrDefault(i => i.id == snapshotProblem.problem_id);
-                if (problem != null && problem.serverSimilarity == 1.0)
+                if (problem != null && problem.serverSimilarity > 0.8)
                 {
                     // I've already solved this one.
                     return problem;
@@ -185,7 +186,7 @@ namespace Submitter
             {
                 var problem = Db.problems.Single(i => i.id == snapshotProblem.problem_id);
                 problem.lastServerResult = serverResult;
-                if (serverResultEntity != null && serverResultEntity.ok)
+                if (serverResultEntity != null && serverResultEntity.ok && serverResultEntity.resemblance > problem.serverSimilarity)
                 {
                     problem.serverSimilarity = serverResultEntity.resemblance;
                 }
