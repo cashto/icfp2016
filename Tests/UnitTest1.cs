@@ -3,6 +3,7 @@ using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Solver;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Tests
 {
@@ -208,9 +209,7 @@ namespace Tests
         [TestMethod]
         public void TestSolver()
         {
-            var ps = new ProblemSpecification(File.ReadAllText("/icfp2016/work/probs/fe40cbad67513fb044d10d8c6438790eeb10ab69"));
-            var ans = Program.SolveExact(ps, 1);
-            Assert.AreEqual(1.0, ans.Compare(ps.polys));
+            Program.Main(new string[] { "0f6a257730c173700166a509ac9c9c921e4bcceb", "1000000" });
         }
 
         [TestMethod]
@@ -239,6 +238,32 @@ namespace Tests
             var hull = Polygon.GetConvexHull(polys);
             Assert.AreEqual(28, hull.Area());
             Assert.AreEqual(8, hull.vertexes.Count);
+        }
+
+        [TestMethod]
+        public void TestMatchHull()
+        {
+            var poly = new Polygon(
+                new List<Point>() 
+                {
+                    Point.Parse("0,0"),
+                    Point.Parse("5,0"),
+                    Point.Parse("3,2"),
+                    Point.Parse("0,2")
+                });
+
+            var rotatedPoly = poly.Transform(
+                Matrix.Translate(RationalNumber.Parse("1/2"), RationalNumber.Parse("1/2")) *
+                Matrix.Rotate(RationalNumber.Parse("3/5"), RationalNumber.Parse("4/5")));
+
+            var matrix = poly.MatchHull(rotatedPoly);
+            Assert.AreNotEqual(null, matrix);
+            Assert.AreEqual(poly.Area(), poly.Transform(matrix).Intersect(rotatedPoly).Area());
+
+            var flippedPoly = rotatedPoly.Transform(Matrix.Flip);
+            matrix = poly.MatchHull(flippedPoly);
+            Assert.AreNotEqual(null, matrix);
+            Assert.AreEqual(poly.Area(), poly.Transform(matrix).Intersect(flippedPoly).Area().Abs());
         }
     }
 }

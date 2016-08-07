@@ -80,7 +80,7 @@ namespace Submitter
             {
                 lock (syncRoot)
                 {
-                    if (TaskCount == 20)
+                    if (TaskCount == 40)
                     {
                         return;
                     }
@@ -231,6 +231,6 @@ namespace Submitter
         }
 
         private static string CURL = @"C:\Users\cashto\AppData\Local\GitHub\PortableGit_d76a6a98c9315931ec4927243517bc09e9b731a0\usr\bin\curl.exe";
-        private static string SOLVER = @"D:\icfp2016\Solver\bin\Debug\Solver.exe";
+        private static string SOLVER = @"D:\icfp2016\work\Solver\Solver.exe";
     }
 }

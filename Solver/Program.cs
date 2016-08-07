@@ -11,30 +11,70 @@ namespace Solver
 {
     public static class Program
     {
-        public static T SelectMaximum<T>(this IEnumerable<T> list, Func<T, double> fn)
+        public static T SelectBest<T>(this IEnumerable<T> list, Func<T, T, bool> fn)
         {
             var ans = list.First();
-            double ansMetric = fn(ans);
             foreach (var i in list.Skip(1))
             {
-                var iMetric = fn(i);
-                if (iMetric > ansMetric)
+                if (fn(i, ans))
                 {
                     ans = i;
-                    ansMetric = iMetric;
                 }
             }
 
             return ans;
         }
 
-        static void Main(string[] args)
+        public static void Main(string[] args)
         {
+            TimeSpan timeout = TimeSpan.FromSeconds((args.Length == 2) ? int.Parse(args[1]) : 10);
+            Deadline = DateTime.UtcNow + timeout;
             var ps = new ProblemSpecification(File.ReadAllText("/icfp2016/work/probs/" + args[0]));
-            var ans = Program.Solve(ps, 2);
+            var ans = Program.SolveExact(ps, 4);
             File.WriteAllText("/icfp2016/work/solutions/" + args[0], ans.ToString());
             Console.WriteLine(ans.Compare(ps.polys));
         }
+
+        public static void Analyze(string[] args)
+        {
+            ProblemSpecification ps = null;
+            try
+            {
+                ps = new ProblemSpecification(File.ReadAllText("/icfp2016/work/probs/" + args[0]));
+            }
+            catch (Exception)
+            {
+                Console.WriteLine("{0}\tError", args[0]);
+                Environment.Exit(0);
+            }
+
+            var positivePolys = ps.polys.Where(i => i.Area().n >= 0).ToList();
+            var negativePolys = ps.polys.Where(i => i.Area().n < 0).ToList();
+            Console.WriteLine("{0}\t{1}\t{2}\t{3}\t{4}",
+                args[0],
+                positivePolys.Count,
+                negativePolys.Count,
+                CountOverlaps(positivePolys),
+                CountOverlaps(negativePolys));
+        }
+
+        static int CountOverlaps(List<Polygon> polys)
+        {
+            var ans = 0;
+            for (var i = 0; i < polys.Count; ++i)
+            {
+                for (var j = i + 1; j < polys.Count; ++j)
+                {
+                    if (polys[i].Intersect(polys[j]).Area().n != 0)
+                    {
+                        ++ans;
+                    }
+                }
+            }
+
+            return ans;
+        }
+
 
         public static Origami CreateRandomPuzzle(Matrix cheatMatrix)
         {
@@ -90,7 +130,7 @@ namespace Solver
                 //}
 
                 var t = Solve(ps, depth - 1, origami.Fold(new Line(segment)));
-                var ts = t.Compare(ps.polys); 
+                var ts = t.Compare(ps.polys);
                 if (ts >= currentSimilarity)
                 {
                     currentAnswer = t;
@@ -108,6 +148,11 @@ namespace Solver
 
         public static Origami SolveExact(ProblemSpecification ps, int depth = 3, Origami origami = null)
         {
+            if (DateTime.UtcNow > Deadline)
+            {
+                Environment.Exit(0);
+            }
+
             if (origami == null)
             {
                 origami = new Origami();
@@ -117,7 +162,7 @@ namespace Solver
             if (origamiHull.Area().Equals(ps.convexHullArea))
             {
                 var matrix = origamiHull.MatchHull(ps.convexHull);
-                if (matrix != null)
+                if (matrix != null && origami.IsExactMatch(ps.polys, matrix))
                 {
                     origami.matrix = matrix;
                     return origami;
@@ -127,17 +172,16 @@ namespace Solver
             // Do a fold!
             if (depth > 0)
             {
-                foreach (var segment in ps.segments.Concat(ps.reverseSegments))
+                foreach (var segment in ps.segments)
                 {
-                    //if (origami.ContainsSegment(segment))
-                    //{
-                    //    continue;
-                    //}
-
-                    var t = Solve(ps, depth - 1, origami.Fold(new Line(segment)));
-                    if (t != null)
+                    var foldedOrigami = origami.Fold(new Line(segment));
+                    if (foldedOrigami.polys.Count != origami.polys.Count)
                     {
-                        return t;
+                        var t = SolveExact(ps, depth - 1, foldedOrigami);
+                        if (t != null)
+                        {
+                            return t;
+                        }
                     }
                 }
             }
@@ -152,6 +196,8 @@ namespace Solver
                 throw new Exception("Assertion failed");
             }
         }
+
+        public static DateTime Deadline;
     }
 
     public class Origami
@@ -170,6 +216,8 @@ namespace Solver
             {
                 new Polygon(origPoints)
             };
+
+            matrix = Matrix.Identity;
         }
 
         private Origami(List<Polygon> polys_)
@@ -359,6 +407,33 @@ namespace Solver
             return area;
         }
 
+        public bool IsExactMatch(List<Polygon> other, Matrix matrix)
+        {
+            foreach (var thisPoly in this.polys.Select(p => p.Transform(matrix)))
+            {
+                var totalArea = RationalNumber.Zero;
+                foreach (var otherPoly in other)
+                {
+                    var otherArea = otherPoly.Area();
+                    if (otherArea.n >= 0)
+                    {
+                        totalArea = totalArea + thisPoly.Intersect(otherPoly).Area().Abs();
+                    }
+                    else if (thisPoly.Intersect(otherPoly).Area().n != 0)
+                    {
+                        return false;
+                    }
+                }
+
+                if (!totalArea.Equals(thisPoly.Area().Abs()))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         public double Area()
         {
             return Area(this.GetUniquePolys());
@@ -458,7 +533,7 @@ namespace Solver
             Matrix matrix_ = null)
         {
             vertexes = vertexes_;
-            matrix = matrix_;
+            matrix = matrix_ ?? Matrix.Identity;
         }
 
         public List<Polygon> Fold(Line line)
@@ -584,11 +659,17 @@ namespace Solver
             var points = new List<Point>();
             foreach (var poly in polys.Where(p => p.Area().n > 0))
             {
-                points.AddRange(poly.vertexes);
+                foreach (var v in poly.vertexes)
+                {
+                    if (!points.Contains(v))
+                    {
+                        points.Add(v);
+                    }
+                }
             }
 
             // p0 = Leftmost point
-            var p0 = points.SelectMaximum(i => -i.x.AsDouble());
+            var p0 = points.SelectBest((a, b) => a.x < b.x || (a.x.Equals(b.x) && a.y < b.y));
 
             var p1 = p0;
             do
@@ -605,7 +686,8 @@ namespace Solver
                             var line = new Line(p1, p);
                             return points.All(p3 => !p3.IsToRightOfLine(line));
                         })
-                    .SelectMaximum(i => i.SquaredDistance(p1).AsDouble());
+                    .ToList()
+                    .SelectBest((a,b) => a.SquaredDistance(p1) > b.SquaredDistance(p1));
 
                 if (p2 == null)
                 {
@@ -620,12 +702,47 @@ namespace Solver
 
         public Matrix MatchHull(Polygon other)
         {
-            Point thisCenter = this.GetCenter();
-            Point otherCenter = other.GetCenter();
-            var matrix = Matrix.Translate(otherCenter.x - thisCenter.x, otherCenter.y - thisCenter.y);
-            if (this.vertexes.All(p => other.vertexes.Contains(matrix.Transform(p))))
+            var matrix = this.MatchHullImpl(other);
+            if (matrix != null)
             {
                 return matrix;
+            }
+
+            matrix = this.MatchHullImpl(other.Transform(Matrix.Flip));
+            if (matrix != null)
+            {
+                return Matrix.Flip * matrix;
+            }
+
+            return null;
+        }
+
+        private Matrix MatchHullImpl(Polygon other)
+        {
+            var firstSegment = this.GetLineSegments().First();
+            var firstSegmentLen = firstSegment.Item1.SquaredDistance(firstSegment.Item2);
+            var matchingSegments = other
+                .GetLineSegments()
+                .Where(seg => seg.Item1.SquaredDistance(seg.Item2).Equals(firstSegmentLen))
+                .ToList();
+            foreach (var otherSegment in matchingSegments)
+            {
+                var dx1 = firstSegment.Item2.x - firstSegment.Item1.x;
+                var dy1 = firstSegment.Item2.y - firstSegment.Item1.y;
+                var dx2 = otherSegment.Item2.x - otherSegment.Item1.x;
+                var dy2 = otherSegment.Item2.y - otherSegment.Item1.y;
+                var d = dx1 * dx1 + dy1 * dy1;
+                var c = (dx1 * dx2 + dy1 * dy2) / d;
+                var s = (dy1 * dx2 - dx1 * dy2) / d;
+                var rotationMatrix = Matrix.Rotate(-s, c);
+
+                Point thisCenter = rotationMatrix.Transform(this.GetCenter());
+                Point otherCenter = other.GetCenter();
+                var matrix = Matrix.Translate(otherCenter.x - thisCenter.x, otherCenter.y - thisCenter.y) * rotationMatrix;
+                if (this.vertexes.All(p => other.vertexes.Contains(matrix.Transform(p))))
+                {
+                    return matrix;
+                }
             }
 
             return null;
@@ -634,7 +751,7 @@ namespace Solver
         public Point GetCenter()
         {
             var x = RationalNumber.Zero;
-            var y = RationalNumber.One;
+            var y = RationalNumber.Zero;
 
             foreach (var p in vertexes)
             {
@@ -1175,6 +1292,7 @@ namespace Solver
         RationalNumber[,] a;
 
         public static Matrix Identity = new Matrix(new RationalNumber[3, 3] { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } });
+        public static Matrix Flip = new Matrix(new RationalNumber[3, 3] { { -1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } });
     }
 
     public class ProblemSpecification
