@@ -18,6 +18,7 @@ Statistics:
 * Solver code: 1281 sloc + 275 sloc of tests
 * Automated submission code: 221 sloc.
 * Numerous other batch files, scripts, etc.
+* ~50 hours of coding
 
 ##Overview
 
@@ -41,6 +42,10 @@ Seriously, fuck this piece of shit:
 
 ![Problem 17](https://dl.dropboxusercontent.com/u/31272201/icfp/2016/p17.jpg).
 
-The vision of creating exact solutions went out the window.  With a heavy heart, I moved on to plan B, in the early hours of day 3 (which was 2am local time).  Plan B was an idea I had a few hours earlier: it turns out that creating convex origami shapes is really easy -- you can just fold along the edges until you reproduce the shape.  For problems I couldn't solve exactly, I would figure out the convex hull of the silhouette, and generate that.  Of course, if the silhouette itself was convex, this would actually give me an exact solution.  Hoping against hope, I crunched the numbers and found a full one-third of contest problems were convex.
+The vision of creating exact solutions went out the window.  I briefly flirted with the idea of building up a square from possible polygons, rather than the current approach of starting with a square and folding it down to a shape -- but at this point it was far too radical a rethink of the strategy.
+
+With a heavy heart, I moved on to plan B, in the early hours of day 3 (which was 2am local time).  Plan B was an idea I had a few hours earlier: it turns out that creating convex origami shapes is really easy -- you can just fold along the edges until you reproduce the shape.  For problems I couldn't solve exactly, I would figure out the convex hull of the silhouette, and generate that.  Of course, if the silhouette itself was convex, this would actually give me an exact solution.  Hoping against hope, I crunched the numbers and found a full one-third of contest problems were convex.
+
+> *"[I have approximate knowledge](https://youtu.be/W9_iQ1FSnp8?t=33s) of many things ..."*
 
 In the final hours of the contest, I had abandoned any thought of doing origami at all; I was instead focused completely on leaderboard hacking.  I was going to find all convex-hull problems and refine my program until I had driven them to zero, or as close as I could possibly get.  In the end, I was able to solve all but 64 of them.  The program worked decently on non-convex problems as well, but never finding perfect matches.  (One aborted idea was to look for problems that would *become* convex with a single flip -- imagine a thin rectangle, folded into a V -- but I ran out of time before I could implement it).
