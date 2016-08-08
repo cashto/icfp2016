@@ -4,13 +4,13 @@ Team cashto is, as it has been since 2007, the work of one Chris Ashton from Sea
 
 ##By the numbers:
 
-* 3502 total problems
+* 3528 total problems
 * 990 solved perfectly
 * 1094 solved > 0.8 resemblance
 * 851 solved > 0.5 resemblance
 * 496 solved > 0.0 resemblance
-* 37 unsolved
-* 34 problems submitted (which I am not allowed to solve)
+* 97 unsolved
+* 36 problems submitted (which I am not allowed to solve)
 
 Statistics:
 
@@ -44,11 +44,13 @@ Seriously, fuck this piece of shit:
 
 The vision of creating exact solutions went out the window.  I briefly flirted with the idea of building up a square from possible polygons, rather than the current approach of starting with a square and folding it down to a shape -- but at this point it was far too radical a rethink of the strategy.
 
-With a heavy heart, I moved on to plan B, in the early hours of day 3 (which was 2am local time).  Plan B was an idea I had a few hours earlier: it turns out that creating convex origami shapes is really easy -- you can just fold along the edges until you reproduce the shape.  For problems I couldn't solve exactly, I would figure out the convex hull of the silhouette, and generate that.  Of course, if the silhouette itself was convex, this would actually give me an exact solution.  Hoping against hope, I crunched the numbers and found a full one-third of contest problems were convex.
+With a heavy heart, in the early hours of day 3 (which was 2am local time), I moved on to plan B, which was this: it turns out that creating convex origami shapes is really easy -- you can just fold along the edges until you reproduce the shape.  Instead of trying to solve the silhouette, I could just try to solve this convext hull of the silohuette.  
 
 > *"[I have approximate knowledge of many things](https://youtu.be/W9_iQ1FSnp8?t=33s) ..."*
 
-In the final hours of the contest, I had abandoned any thought of doing origami at all; I was instead focused completely on leaderboard hacking.  I was going to find all convex-hull problems and refine my program until I had driven them to zero, or as close as I could possibly get.  In the end, I was able to solve all but 64 of them.  The program worked decently on non-convex problems as well, but never finding perfect matches.  (One aborted idea was to look for problems that would *become* convex with a single flip -- imagine a thin rectangle, folded into a V -- but I ran out of time before I could implement it).
+This idea actually occurred to me very early on in the contest, and my plan was to use it as a backup solver for problems too difficult for my exact solver.  Well, as it was now turning out to the be case, that would be nearly all of them.  Of course, this idea also happens to be an exact solver if the silhouette itself was convex.  Hoping against hope, I crunched the numbers and found a full one-third of contest problems were convex and thus tractable by this algorithm.
+
+So, in the final hours of the contest, I had abandoned any thought of doing origami at all; I was instead focused completely on leaderboard hacking.  I was going to find all convex-hull problems and refine my program until I had driven them to zero, or as close as I could possibly get.  In the end, I was able to solve all but 64 such problems.  The program worked decently on non-convex problems as well, but never finding perfect matches.  (One aborted idea was to look for problems that would *become* convex with a single flip -- imagine a thin rectangle, folded into a V -- but I ran out of time before I could implement it).
 
 ##Estimated Results
 
