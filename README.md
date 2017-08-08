@@ -1,8 +1,8 @@
-#ICFP 2016
+# ICFP 2016
 
 Team cashto is, as it has been since 2007, the work of one Chris Ashton from Seattle.
 
-##By the numbers:
+## By the numbers:
 
 * 3528 total problems
 * 990 solved perfectly
@@ -20,7 +20,7 @@ Statistics:
 * Numerous other batch files, scripts, etc.
 * ~50 hours of coding
 
-##Overview
+## Overview
 
 The contest problem was to write a program which, given a silhouette of a target origami shape, can determine the folds necessary to re-create that shape from a square piece of paper.  Initially, the problem set consisted of 100 examples given by the organizers; after the first 24 hours of the contest, contestants could begin submitting their own examples for other teams to solve.
 
@@ -52,7 +52,7 @@ This idea actually occurred to me very early on in the contest, and my plan was 
 
 In the final hours of the contest, I had abandoned any thought of doing origami at all; I was instead focused completely on leaderboard hacking.  I was going to find all convex-hull problems and refine my program until I had driven them to zero, or as close as I could possibly get.  In the end, I was able to solve all but 64 such problems.  The program worked decently on non-convex problems as well, but never finding perfect matches.  (One aborted idea was to look for problems that would *become* convex with a single flip -- imagine a thin rectangle, folded into a V -- but I ran out of time before I could implement it).
 
-##Estimated Results
+## Estimated Results
 
 Using the latest snapshot (one hour from the end of the contest), I estimate I earned 20215 points from the 36 problems I submitted.  (Average size of a problem was 3100 bytes).  Of those, 28 were perfectly solved by 3 teams or fewer.  I estimate I could have earned about 5600 more points from the ten problems I neglected to submit.
 
